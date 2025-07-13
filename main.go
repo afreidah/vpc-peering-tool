@@ -1,5 +1,6 @@
 // -------------------------------------------------------------------------------------------------
 // CDKTF VPC Peering Stack with Bi-Directional Routing, DNS, and Automatic Subnet Route Management
+// Handles cross-account/region peering with explicit accepter resource.
 // -------------------------------------------------------------------------------------------------
 package main
 
@@ -52,6 +53,17 @@ type YAMLConfig struct {
 	PeeringMatrix    map[string][]string `yaml:"peering_matrix"`
 	DnsResolution    map[string]bool     `yaml:"dns_resolution,omitempty"`
 	AdditionalRoutes map[string][]string `yaml:"additional_routes,omitempty"`
+}
+
+// -------------------------------------------------------------------------------------------------
+// Helper: Extract account ID from role ARN
+// -------------------------------------------------------------------------------------------------
+func getAccountIdFromRoleArn(roleArn string) string {
+	parts := strings.Split(roleArn, ":")
+	if len(parts) >= 5 {
+		return parts[4]
+	}
+	return ""
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -147,6 +159,8 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 
 		// Determine if auto_accept can be true (only if regions are the same)
 		autoAccept := sourceRegion == peerRegion
+
+		// Set PeerOwnerId dynamically from peer's role ARN
 		peerOwnerId := getAccountIdFromRoleArn(peer.PeerRoleArn)
 
 		// Build the config struct for the peering connection
@@ -154,12 +168,9 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 			VpcId:       jsii.String(peer.SourceVpcId),
 			PeerVpcId:   jsii.String(peer.PeerVpcId),
 			PeerOwnerId: jsii.String(peerOwnerId),
-			Provider:    sourceProvider,
+			Provider:    sourceProvider, // Always use the source/requester provider!
 			AutoAccept:  jsii.Bool(autoAccept),
 			Requester: &vpcpeeringconnection.VpcPeeringConnectionRequester{
-				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
-			},
-			Accepter: &vpcpeeringconnection.VpcPeeringConnectionAccepter{
 				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
 			},
 			Tags: &map[string]*string{
@@ -170,24 +181,62 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 				"PeerVpcId":   jsii.String(peer.PeerVpcId),
 			},
 		}
+		// Only set Accepter block if autoAccept is true
+		if autoAccept {
+			peeringConfig.Accepter = &vpcpeeringconnection.VpcPeeringConnectionAccepter{
+				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
+			}
+		}
 
-		// Only set PeerRegion if regions differ (required by AWS/Terraform)
+		// Only set Accepter block if autoAccept is true
+		if autoAccept {
+			peeringConfig.Accepter = &vpcpeeringconnection.VpcPeeringConnectionAccepter{
+				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
+			}
+		}
 		if sourceRegion != peerRegion {
 			peeringConfig.PeerRegion = jsii.String(peerRegion)
 		}
 
-		// Create the peering connection resource
 		peering := vpcpeeringconnection.NewVpcPeeringConnection(
 			stack,
 			jsii.String(fmt.Sprintf("VpcPeering%d", i)),
 			peeringConfig,
 		)
-
 		vpcPeeringConnections = append(vpcPeeringConnections, peering)
+
+		// ---------------------------------------------------------------------
+		// If auto_accept is false, add an accepter resource in the peer account/region
+		// ---------------------------------------------------------------------
+
+		var accepter cdktf.TerraformResource
+		if !autoAccept {
+			accepter = cdktf.NewTerraformResource(stack, jsii.String(fmt.Sprintf("VpcPeeringAccepter%d", i)), &cdktf.TerraformResourceConfig{
+				TerraformResourceType: jsii.String("aws_vpc_peering_connection_accepter"),
+				Provider:              peerProvider,
+				DependsOn:             &[]cdktf.ITerraformDependable{peering},
+			})
+			accepter.AddOverride(jsii.String("vpc_peering_connection_id"), peering.Id())
+			accepter.AddOverride(jsii.String("auto_accept"), true)
+			accepter.AddOverride(jsii.String("tags"), map[string]interface{}{
+				"Name":        fmt.Sprintf("Connection to %s", name),
+				"Environment": "production",
+				"ManagedBy":   "cdktf",
+				"SourceVpcId": peer.SourceVpcId,
+				"PeerVpcId":   peer.PeerVpcId,
+			})
+		}
 
 		// ---------------------------------------------------------------------
 		// Bi-Directional Main Route Table Entries for Peering
 		// ---------------------------------------------------------------------
+
+		// Build dependsOn slice for resources that require an active peering
+		var dependsOn []cdktf.ITerraformDependable
+		dependsOn = append(dependsOn, peering)
+		if !autoAccept && accepter != nil {
+			dependsOn = append(dependsOn, accepter)
+		}
 
 		// Source → Peer: route to peer's main CIDR
 		awsroute.NewRoute(stack, jsii.String(fmt.Sprintf("SourceToPeerMainRoute%d", i)), &awsroute.RouteConfig{
@@ -195,6 +244,7 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 			DestinationCidrBlock:   peerVpcData.CidrBlock(),
 			VpcPeeringConnectionId: peering.Id(),
 			Provider:               sourceProvider,
+			DependsOn:              &dependsOn,
 		})
 
 		// Peer → Source: route to source's main CIDR
@@ -203,6 +253,7 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 			DestinationCidrBlock:   sourceVpcData.CidrBlock(),
 			VpcPeeringConnectionId: peering.Id(),
 			Provider:               peerProvider,
+			DependsOn:              &dependsOn,
 		})
 
 		// ---------------------------------------------------------------------
@@ -230,6 +281,7 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 						DestinationCidrBlock:   peerVpcData.CidrBlock(),
 						VpcPeeringConnectionId: peering.Id(),
 						Provider:               sourceProvider,
+						DependsOn:              &dependsOn,
 					})
 				}
 			}
@@ -255,6 +307,7 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 						DestinationCidrBlock:   sourceVpcData.CidrBlock(),
 						VpcPeeringConnectionId: peering.Id(),
 						Provider:               peerProvider,
+						DependsOn:              &dependsOn,
 					})
 				}
 			}
@@ -272,7 +325,6 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 // Output Helper
 // -------------------------------------------------------------------------------------------------
 
-// addOutputs creates Terraform outputs for peering connection IDs and route table IDs.
 func addOutputs(stack cdktf.TerraformStack, peers []PeerConfig, vpcs []vpcpeeringconnection.VpcPeeringConnection, sourceTables []dataawsroutetable.DataAwsRouteTable, peerTables []dataawsroutetable.DataAwsRouteTable) {
 	for i := range peers {
 		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("VpcPeeringConnectionId_%d", i)), &cdktf.TerraformOutputConfig{
@@ -291,7 +343,6 @@ func addOutputs(stack cdktf.TerraformStack, peers []PeerConfig, vpcs []vpcpeerin
 // YAML Config Loading and Conversion
 // -------------------------------------------------------------------------------------------------
 
-// loadConfig reads and parses the YAML configuration file.
 func loadConfig(path string) YAMLConfig {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -304,7 +355,6 @@ func loadConfig(path string) YAMLConfig {
 	return cfg
 }
 
-// convertToPeerConfigs transforms YAMLConfig into a slice of PeerConfig, applying the source filter.
 func convertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 	var peerConfigs []PeerConfig
 	log.Printf("[convert] Applying source filter: %q", sourceFilter)
@@ -353,37 +403,24 @@ func convertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 	return peerConfigs
 }
 
-// Helper to extract account ID from role ARN
-func getAccountIdFromRoleArn(roleArn string) string {
-	parts := strings.Split(roleArn, ":")
-	if len(parts) >= 5 {
-		return parts[4]
-	}
-	return ""
-}
-
 // -------------------------------------------------------------------------------------------------
 // Main Entrypoint
 // -------------------------------------------------------------------------------------------------
 
 func main() {
-	// Load YAML configuration
 	cfg := loadConfig("peering.yaml")
 
-	// Get source filter from environment variable or use default
 	sourceID := os.Getenv("CDKTF_SOURCE")
 	if sourceID == "" {
 		sourceID = "default-source"
 	}
 
-	// Convert YAML config to peer configs, applying the source filter
 	peers := convertToPeerConfigs(cfg, sourceID)
 
 	if len(peers) == 0 {
 		log.Fatalf("no peers matched for source: %s", sourceID)
 	}
 
-	// Create and synthesize the CDKTF app/stack
 	app := cdktf.NewApp(nil)
 	NewMyStack(app, "cdktf-vpc-peering-module", sourceID, peers)
 	app.Synth()
