@@ -42,7 +42,7 @@ destroy:
 
 # Clean up generated files
 clean:
-	rm -rf cdktf.out .gen
+	rm -rf cdktf.out .gen && find . -name "*.terraform*" -exec rm -rf {} +
 
 # Full fresh build
 build: clean get tidy synth plan

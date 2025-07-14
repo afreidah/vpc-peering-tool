@@ -12,13 +12,46 @@ import (
 	awsprovider "cdk.tf/go/stack/generated/hashicorp/aws/provider"
 	awsroute "cdk.tf/go/stack/generated/hashicorp/aws/route"
 	vpcpeeringconnection "cdk.tf/go/stack/generated/hashicorp/aws/vpcpeeringconnection"
+	vpcpeeringconnectionaccepter "cdk.tf/go/stack/generated/hashicorp/aws/vpcpeeringconnectionaccepter"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 	"github.com/hashicorp/terraform-cdk-go/cdktf"
 	"gopkg.in/yaml.v2"
-
-	vpcpeeringconnectionaccepter "cdk.tf/go/stack/generated/hashicorp/aws/vpcpeeringconnectionaccepter"
 )
+
+// -------------------------------------------------------------------------------------------------
+// Struct Definitions
+// -------------------------------------------------------------------------------------------------
+
+// PeerConfig defines the configuration for a single VPC peering connection, including DNS and extra route flag.
+type PeerConfig struct {
+	SourceVpcId             string
+	SourceRegion            string
+	SourceRoleArn           string
+	PeerVpcId               string
+	PeerRegion              string
+	PeerRoleArn             string
+	Name                    string
+	EnableDnsResolution     bool
+	HasExtraPeerRouteTables bool // Controls whether to add subnet routes
+}
+
+// YAMLPeer represents a peer entry in the YAML file.
+type YAMLPeer struct {
+	VpcId               string `yaml:"vpc_id"`
+	Region              string `yaml:"region"`
+	RoleArn             string `yaml:"role_arn"`
+	DnsResolution       bool   `yaml:"dns_resolution"`
+	HasAdditionalRoutes bool   `yaml:"has_additional_routes"`
+}
+
+// YAMLConfig holds the structure of the YAML configuration file, including DNS and extra route flag.
+type YAMLConfig struct {
+	Peers            map[string]YAMLPeer `yaml:"peers"`
+	PeeringMatrix    map[string][]string `yaml:"peering_matrix"`
+	DnsResolution    map[string]bool     `yaml:"dns_resolution,omitempty"`
+	AdditionalRoutes map[string][]string `yaml:"additional_routes,omitempty"`
+}
 
 // -------------------------------------------------------------------------------------------------
 // Helper: Extract account ID from role ARN
@@ -80,45 +113,14 @@ func ConvertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 				PeerVpcId:               peerPeer.VpcId,
 				PeerRegion:              peerPeer.Region,
 				PeerRoleArn:             peerPeer.RoleArn,
-				PeerVpcCidr:             peerPeer.CidrBlock, // <-- Add this line
 				Name:                    target,
-				EnableDnsResolution:     sourcePeer.DnsResolution,
-				HasExtraPeerRouteTables: sourcePeer.HasAdditionalRoutes,
+				EnableDnsResolution:     peerPeer.DnsResolution,
+				HasExtraPeerRouteTables: peerPeer.HasAdditionalRoutes,
 			})
 		}
 	}
-
 	log.Printf("[convert] Returning %d peer configs", len(peerConfigs))
 	return peerConfigs
-}
-
-// -------------------------------------------------------------------------------------------------
-// Output Helper
-// -------------------------------------------------------------------------------------------------
-// Outputs peering connection IDs, main route tables, and peer subnet IDs for use in downstream consumers.
-
-func AddOutputs(
-	stack cdktf.TerraformStack,
-	peers []PeerConfig,
-	vpcs []vpcpeeringconnection.VpcPeeringConnection,
-	sourceTables []dataawsroutetable.DataAwsRouteTable,
-	peerTables []dataawsroutetable.DataAwsRouteTable,
-	peerSubnetIds [][]*string,
-) {
-	for i := range peers {
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("VpcPeeringConnectionId_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: vpcs[i].Id(),
-		})
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("SourceMainRouteTableId_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: sourceTables[i].Id(),
-		})
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("PeerMainRouteTableId_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: peerTables[i].Id(),
-		})
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("PeerSubnetIds_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: peerSubnetIds[i],
-		})
-	}
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -249,6 +251,7 @@ func CreatePeerSubnetRoutes(
 // -------------------------------------------------------------------------------------------------
 // Create VPC Peering Connection Options with explicit dependency on accepter
 // -------------------------------------------------------------------------------------------------
+
 func CreatePeeringConnectionOptions(
 	stack constructs.Construct,
 	name string,
@@ -264,4 +267,120 @@ func CreatePeeringConnectionOptions(
 	})
 	opts.AddOverride(jsii.String("vpc_peering_connection_id"), peeringId)
 	opts.AddOverride(jsii.String("requester.allow_remote_vpc_dns_resolution"), enableDns)
+}
+
+// -------------------------------------------------------------------------------------------------
+// Output Helper
+// -------------------------------------------------------------------------------------------------
+
+func AddOutputs(stack cdktf.TerraformStack, peers []PeerConfig, vpcs []vpcpeeringconnection.VpcPeeringConnection, sourceTables []dataawsroutetable.DataAwsRouteTable, peerTables []dataawsroutetable.DataAwsRouteTable) {
+	for i := range peers {
+		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("VpcPeeringConnectionId_%d", i)), &cdktf.TerraformOutputConfig{
+			Value: vpcs[i].Id(),
+		})
+		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("SourceMainRouteTableId_%d", i)), &cdktf.TerraformOutputConfig{
+			Value: sourceTables[i].Id(),
+		})
+		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("PeerMainRouteTableId_%d", i)), &cdktf.TerraformOutputConfig{
+			Value: peerTables[i].Id(),
+		})
+	}
+}
+
+// -------------------------------------------------------------------------------------------------
+// Create Route Helper
+// -------------------------------------------------------------------------------------------------
+
+func CreateRoute(
+	stack cdktf.TerraformStack,
+	name string,
+	routeTableId *string,
+	destCidr *string,
+	peeringId *string,
+	provider cdktf.TerraformProvider,
+	dependsOn []cdktf.ITerraformDependable,
+) {
+	awsroute.NewRoute(stack, jsii.String(name), &awsroute.RouteConfig{
+		RouteTableId:           routeTableId,
+		DestinationCidrBlock:   destCidr,
+		VpcPeeringConnectionId: peeringId,
+		Provider:               provider,
+		DependsOn:              &dependsOn,
+	})
+}
+
+// -------------------------------------------------------------------------------------------------
+// Create Subnet Routes for Peering Connections
+// -------------------------------------------------------------------------------------------------
+
+func CreateSubnetRoutes(
+	stack cdktf.TerraformStack,
+	namePrefix string,
+	subnetIds *[]*string,
+	dataRouteTableName string,
+	provider cdktf.TerraformProvider,
+	destCidr *string,
+	peeringId *string,
+	dependsOn []cdktf.ITerraformDependable,
+) {
+	iterator := cdktf.TerraformIterator_FromList(subnetIds)
+	dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(dataRouteTableName), &dataawsroutetable.DataAwsRouteTableConfig{
+		ForEach:  iterator,
+		SubnetId: jsii.String("${each.value}"),
+		Provider: provider,
+	})
+	CreateRoute(
+		stack,
+		namePrefix,
+		jsii.String("${each.value.id}"),
+		destCidr,
+		peeringId,
+		provider,
+		dependsOn,
+	)
+}
+
+// -------------------------------------------------------------------------------------------------
+// Create Filtered Subnet Routes
+// -------------------------------------------------------------------------------------------------
+
+func CreateFilteredSubnetRoutes(
+	stack cdktf.TerraformStack,
+	namePrefix string,
+	subnetResourceName string,
+	vpcId string,
+	provider cdktf.TerraformProvider,
+	tagFilterName string,
+	tagFilterValue string,
+	routeTableResourceName string,
+	destCidr *string,
+	peeringId *string,
+	dependsOn []cdktf.ITerraformDependable,
+) {
+	subnets := dataawssubnets.NewDataAwsSubnets(stack, jsii.String(subnetResourceName), &dataawssubnets.DataAwsSubnetsConfig{
+		Provider: provider,
+		Filter: &[]*dataawssubnets.DataAwsSubnetsFilter{
+			{
+				Name:   jsii.String("vpc-id"),
+				Values: jsii.Strings(vpcId),
+			},
+			{
+				Name:   jsii.String(tagFilterName),
+				Values: jsii.Strings(tagFilterValue),
+			},
+		},
+	})
+
+	if subnets.Ids() != nil {
+		CreateSubnetRoutes(
+			stack,
+			namePrefix,
+			subnets.Ids(),
+			routeTableResourceName,
+			provider,
+			destCidr,
+			peeringId,
+			dependsOn,
+		)
+	}
 }

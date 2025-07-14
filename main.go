@@ -8,73 +8,22 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 	"github.com/hashicorp/terraform-cdk-go/cdktf"
-	"gopkg.in/yaml.v2"
 
 	dataawsroutetable "cdk.tf/go/stack/generated/hashicorp/aws/dataawsroutetable"
-	dataawssubnets "cdk.tf/go/stack/generated/hashicorp/aws/dataawssubnets"
-	dataawsvpc "cdk.tf/go/stack/generated/hashicorp/aws/dataawsvpc"
-	awsprovider "cdk.tf/go/stack/generated/hashicorp/aws/provider"
-	awsroute "cdk.tf/go/stack/generated/hashicorp/aws/route"
 	vpcpeeringconnection "cdk.tf/go/stack/generated/hashicorp/aws/vpcpeeringconnection"
 )
-
-// -------------------------------------------------------------------------------------------------
-// Struct Definitions
-// -------------------------------------------------------------------------------------------------
-
-// PeerConfig defines the configuration for a single VPC peering connection, including DNS and extra route flag.
-type PeerConfig struct {
-	SourceVpcId             string
-	SourceRegion            string
-	SourceRoleArn           string
-	PeerVpcId               string
-	PeerRegion              string
-	PeerRoleArn             string
-	Name                    string
-	EnableDnsResolution     bool
-	HasExtraPeerRouteTables bool // Controls whether to add subnet routes
-}
-
-// YAMLPeer represents a peer entry in the YAML file.
-type YAMLPeer struct {
-	VpcId   string `yaml:"vpc_id"`
-	Region  string `yaml:"region"`
-	RoleArn string `yaml:"role_arn"`
-}
-
-// YAMLConfig holds the structure of the YAML configuration file, including DNS and extra route flag.
-type YAMLConfig struct {
-	Peers            map[string]YAMLPeer `yaml:"peers"`
-	PeeringMatrix    map[string][]string `yaml:"peering_matrix"`
-	DnsResolution    map[string]bool     `yaml:"dns_resolution,omitempty"`
-	AdditionalRoutes map[string][]string `yaml:"additional_routes,omitempty"`
-}
-
-// -------------------------------------------------------------------------------------------------
-// Helper: Extract account ID from role ARN
-// -------------------------------------------------------------------------------------------------
-func getAccountIdFromRoleArn(roleArn string) string {
-	parts := strings.Split(roleArn, ":")
-	if len(parts) >= 5 {
-		return parts[4]
-	}
-	return ""
-}
 
 // -------------------------------------------------------------------------------------------------
 // Stack Construction
 // -------------------------------------------------------------------------------------------------
 
-// NewMyStack creates the Terraform stack for VPC peering, DNS, and route management.
 func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []PeerConfig) cdktf.TerraformStack {
 	stack := cdktf.NewTerraformStack(scope, &id)
 
-	// Define the 'source_id' variable for filtering (not used in Terraform output, just for context)
 	cdktf.NewTerraformVariable(stack, jsii.String("source_id"), &cdktf.TerraformVariableConfig{
 		Type:        jsii.String("string"),
 		Description: jsii.String("The source identifier for this resource"),
@@ -85,11 +34,8 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 	var sourceMainRouteTables []dataawsroutetable.DataAwsRouteTable
 	var peerMainRouteTables []dataawsroutetable.DataAwsRouteTable
 
-	// -------------------------------------------------------------------------
-	// Iterate over each peering configuration and create resources
-	// -------------------------------------------------------------------------
 	for i, peer := range peers {
-		// Set default regions if not provided
+		// --- Validate peer configuration or set defaults ---
 		sourceRegion := peer.SourceRegion
 		if sourceRegion == "" {
 			sourceRegion = "us-west-2"
@@ -99,105 +45,63 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 			peerRegion = "us-west-2"
 		}
 
-		// AWS Providers for source and peer, with role assumption
-		sourceProvider := awsprovider.NewAwsProvider(stack, jsii.String(fmt.Sprintf("SourceAWS%d", i)), &awsprovider.AwsProviderConfig{
-			Region: jsii.String(sourceRegion),
-			Alias:  jsii.String(fmt.Sprintf("source%d", i)),
-			AssumeRole: &[]*awsprovider.AwsProviderAssumeRole{{
-				RoleArn: jsii.String(peer.SourceRoleArn),
-			}},
-		})
+		// --- Setup providers ---
+		sourceProviderName := fmt.Sprintf("SourceAWS%d", i)
+		sourceProviderAlias := fmt.Sprintf("source%d", i)
+		peerProviderName := fmt.Sprintf("PeerAWS%d", i)
+		peerProviderAlias := fmt.Sprintf("peer%d", i)
+		sourceProvider := CreateAwsProvider(stack, sourceProviderName, sourceProviderAlias, sourceRegion, peer.SourceRoleArn)
+		peerProvider := CreateAwsProvider(stack, peerProviderName, peerProviderAlias, peerRegion, peer.PeerRoleArn)
 
-		peerProvider := awsprovider.NewAwsProvider(stack, jsii.String(fmt.Sprintf("PeerAWS%d", i)), &awsprovider.AwsProviderConfig{
-			Region: jsii.String(peerRegion),
-			Alias:  jsii.String(fmt.Sprintf("peer%d", i)),
-			AssumeRole: &[]*awsprovider.AwsProviderAssumeRole{{
-				RoleArn: jsii.String(peer.PeerRoleArn),
-			}},
-		})
+		// --- Setup VPC data sources ---
+		sourceVpcName := fmt.Sprintf("SourceVpcData%d", i)
+		peerVpcName := fmt.Sprintf("PeerVpcData%d", i)
+		sourceVpcData := CreateDataAwsVpc(stack, sourceVpcName, peer.SourceVpcId, sourceProvider)
+		peerVpcData := CreateDataAwsVpc(stack, peerVpcName, peer.PeerVpcId, peerProvider)
 
-		// ---------------------------------------------------------------------
-		// Data sources for VPCs (used to get main CIDR block)
-		// ---------------------------------------------------------------------
-		sourceVpcData := dataawsvpc.NewDataAwsVpc(stack, jsii.String(fmt.Sprintf("SourceVpcData%d", i)), &dataawsvpc.DataAwsVpcConfig{
-			Id:       jsii.String(peer.SourceVpcId),
-			Provider: sourceProvider,
-		})
-		peerVpcData := dataawsvpc.NewDataAwsVpc(stack, jsii.String(fmt.Sprintf("PeerVpcData%d", i)), &dataawsvpc.DataAwsVpcConfig{
-			Id:       jsii.String(peer.PeerVpcId),
-			Provider: peerProvider,
-		})
+		// --- Prepare main route table arguments and tags ---
+		sourceMainRtName := fmt.Sprintf("SourceMainRouteTable%d", i)
+		peerMainRtName := fmt.Sprintf("PeerMainRouteTable%d", i)
+		sourceMainRtTags := &map[string]*string{"cdktf-source-main-rt": jsii.String(fmt.Sprintf("mainrt-%d", i))}
+		peerMainRtTags := &map[string]*string{"cdktf-peer-main-rt": jsii.String(fmt.Sprintf("mainrt-%d", i))}
 
-		// Main route tables for source and peer VPCs
-		sourceMainRt := dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(fmt.Sprintf("SourceMainRouteTable%d", i)), &dataawsroutetable.DataAwsRouteTableConfig{
-			VpcId:    jsii.String(peer.SourceVpcId),
-			Provider: sourceProvider,
-			Filter: &[]*dataawsroutetable.DataAwsRouteTableFilter{{
-				Name:   jsii.String("association.main"),
-				Values: jsii.Strings("true"),
-			}},
-		})
+		// --- Create Main Route Tables ---
+		sourceMainRt := CreateMainRouteTable(stack, sourceMainRtName, peer.SourceVpcId, sourceProvider, sourceMainRtTags)
+		peerMainRt := CreateMainRouteTable(stack, peerMainRtName, peer.PeerVpcId, peerProvider, peerMainRtTags)
 		sourceMainRouteTables = append(sourceMainRouteTables, sourceMainRt)
-
-		peerMainRt := dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(fmt.Sprintf("PeerMainRouteTable%d", i)), &dataawsroutetable.DataAwsRouteTableConfig{
-			VpcId:    jsii.String(peer.PeerVpcId),
-			Provider: peerProvider,
-			Filter: &[]*dataawsroutetable.DataAwsRouteTableFilter{{
-				Name:   jsii.String("association.main"),
-				Values: jsii.Strings("true"),
-			}},
-		})
 		peerMainRouteTables = append(peerMainRouteTables, peerMainRt)
 
 		// ---------------------------------------------------------------------
-		// VPC Peering Connection with DNS resolution option
+		// Create VPC Peering Connection with Options and Routes
 		// ---------------------------------------------------------------------
+
+		peerOwnerId := GetAccountIDFromRoleArn(peer.PeerRoleArn)
 		name := peer.Name
 		if name == "" {
 			name = peer.PeerVpcId
 		}
 
-		// Determine if auto_accept can be true (only if regions are the same)
-		autoAccept := sourceRegion == peerRegion
-
-		// Set PeerOwnerId dynamically from peer's role ARN
-		peerOwnerId := getAccountIdFromRoleArn(peer.PeerRoleArn)
-
-		// Build the config struct for the peering connection
+		// --- Only set options in aws_vpc_peering_connection_options, not here ---
 		peeringConfig := &vpcpeeringconnection.VpcPeeringConnectionConfig{
 			VpcId:       jsii.String(peer.SourceVpcId),
 			PeerVpcId:   jsii.String(peer.PeerVpcId),
 			PeerOwnerId: jsii.String(peerOwnerId),
-			Provider:    sourceProvider, // Always use the source/requester provider!
+			Provider:    sourceProvider,
 			AutoAccept:  jsii.Bool(autoAccept),
-			Requester: &vpcpeeringconnection.VpcPeeringConnectionRequester{
-				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
-			},
 			Tags: &map[string]*string{
 				"Name":        jsii.String(fmt.Sprintf("Connection to %s", name)),
-				"Environment": jsii.String("production"),
 				"ManagedBy":   jsii.String("cdktf"),
 				"SourceVpcId": jsii.String(peer.SourceVpcId),
 				"PeerVpcId":   jsii.String(peer.PeerVpcId),
 			},
 		}
-		// Only set Accepter block if autoAccept is true
-		if autoAccept {
-			peeringConfig.Accepter = &vpcpeeringconnection.VpcPeeringConnectionAccepter{
-				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
-			}
-		}
 
-		// Only set Accepter block if autoAccept is true
-		if autoAccept {
-			peeringConfig.Accepter = &vpcpeeringconnection.VpcPeeringConnectionAccepter{
-				AllowRemoteVpcDnsResolution: jsii.Bool(peer.EnableDnsResolution),
-			}
-		}
+		// --- Only add PeerRegion if different from SourceRegion ---
 		if sourceRegion != peerRegion {
 			peeringConfig.PeerRegion = jsii.String(peerRegion)
 		}
 
+		// --- Create the VPC Peering Connection ---
 		peering := vpcpeeringconnection.NewVpcPeeringConnection(
 			stack,
 			jsii.String(fmt.Sprintf("VpcPeering%d", i)),
@@ -205,11 +109,10 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 		)
 		vpcPeeringConnections = append(vpcPeeringConnections, peering)
 
-		// ---------------------------------------------------------------------
-		// If auto_accept is false, add an accepter resource in the peer account/region
-		// ---------------------------------------------------------------------
-
+		// --- If auto_accept is false, add an accepter resource in the peer account/region ---
+		autoAccept := sourceRegion == peerRegion
 		var accepter cdktf.TerraformResource
+
 		if !autoAccept {
 			accepter = cdktf.NewTerraformResource(stack, jsii.String(fmt.Sprintf("VpcPeeringAccepter%d", i)), &cdktf.TerraformResourceConfig{
 				TerraformResourceType: jsii.String("aws_vpc_peering_connection_accepter"),
@@ -227,180 +130,87 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 			})
 		}
 
-		// ---------------------------------------------------------------------
-		// Bi-Directional Main Route Table Entries for Peering
-		// ---------------------------------------------------------------------
+		// --- Peering Connection Options (for DNS, etc.) ---
+		var optionsDependsOn []cdktf.ITerraformDependable
+		optionsDependsOn = append(optionsDependsOn, peering)
+		if accepter != nil {
+			optionsDependsOn = append(optionsDependsOn, accepter)
+		}
 
-		// Build dependsOn slice for resources that require an active peering
+		// --- Create VPC Peering Options Resource ---
+		opts := cdktf.NewTerraformResource(stack, jsii.String(fmt.Sprintf("VpcPeeringOptions%d", i)), &cdktf.TerraformResourceConfig{
+			TerraformResourceType: jsii.String("aws_vpc_peering_connection_options"),
+			Provider:              sourceProvider,
+			DependsOn:             &optionsDependsOn,
+		})
+		opts.AddOverride(jsii.String("vpc_peering_connection_id"), peering.Id())
+		opts.AddOverride(jsii.String("requester.allow_remote_vpc_dns_resolution"), peer.EnableDnsResolution)
+
+		// --- If auto_accept is false, set accepter options as well ---
 		var dependsOn []cdktf.ITerraformDependable
 		dependsOn = append(dependsOn, peering)
 		if !autoAccept && accepter != nil {
 			dependsOn = append(dependsOn, accepter)
 		}
 
-		// Source → Peer: route to peer's main CIDR
-		awsroute.NewRoute(stack, jsii.String(fmt.Sprintf("SourceToPeerMainRoute%d", i)), &awsroute.RouteConfig{
-			RouteTableId:           sourceMainRt.Id(),
-			DestinationCidrBlock:   peerVpcData.CidrBlock(),
-			VpcPeeringConnectionId: peering.Id(),
-			Provider:               sourceProvider,
-			DependsOn:              &dependsOn,
-		})
+		// --- Create Route Table Entries ---
+		CreateRoute(
+			stack,
+			fmt.Sprintf("SourceToPeerMainRoute%d", i),
+			sourceMainRt.Id(),
+			peerVpcData.CidrBlock(),
+			peering.Id(),
+			sourceProvider,
+			dependsOn,
+		)
 
-		// Peer → Source: route to source's main CIDR
-		awsroute.NewRoute(stack, jsii.String(fmt.Sprintf("PeerToSourceMainRoute%d", i)), &awsroute.RouteConfig{
-			RouteTableId:           peerMainRt.Id(),
-			DestinationCidrBlock:   sourceVpcData.CidrBlock(),
-			VpcPeeringConnectionId: peering.Id(),
-			Provider:               peerProvider,
-			DependsOn:              &dependsOn,
-		})
+		// --- Craete Reverse Route Table Entries ---
+		CreateRoute(
+			stack,
+			fmt.Sprintf("PeerToPeerMainRoute%d", i),
+			jsii.String(*peerMainRt.Id()),
+			jsii.String(*peering.Id()),
+			peering.Id(),
+			sourceProvider,
+			dependsOn,
+		)
 
-		// ---------------------------------------------------------------------
-		// Bi-Directional Subnet Route Table Entries (if enabled)
-		// ---------------------------------------------------------------------
+		// --- Bi-Directional Subnet Route Table Entries.  Will handle extra peer route tables if specified ---
 		if peer.HasExtraPeerRouteTables {
-			// --- Source → Peer: Add routes in all source subnet route tables to peer's main CIDR ---
-			sourceSubnets := dataawssubnets.NewDataAwsSubnets(stack, jsii.String(fmt.Sprintf("SourceSubnets%d", i)), &dataawssubnets.DataAwsSubnetsConfig{
-				Provider: sourceProvider,
-				Filter: &[]*dataawssubnets.DataAwsSubnetsFilter{
-					{
-						Name:   jsii.String("vpc-id"),
-						Values: jsii.Strings(peer.SourceVpcId),
-					},
-				},
-			})
-			if sourceSubnets.Ids() != nil {
-				for j, subnetId := range *sourceSubnets.Ids() {
-					routeTable := dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(fmt.Sprintf("SourceSubnetRouteTable%d_%d", i, j)), &dataawsroutetable.DataAwsRouteTableConfig{
-						SubnetId: subnetId,
-						Provider: sourceProvider,
-					})
-					awsroute.NewRoute(stack, jsii.String(fmt.Sprintf("SourceSubnetToPeerRoute%d_%d", i, j)), &awsroute.RouteConfig{
-						RouteTableId:           routeTable.Id(),
-						DestinationCidrBlock:   peerVpcData.CidrBlock(),
-						VpcPeeringConnectionId: peering.Id(),
-						Provider:               sourceProvider,
-						DependsOn:              &dependsOn,
-					})
-				}
-			}
+			// --- Create DataAwsRouteTable for Source Subnets ---
+			CreateFilteredSubnetRoutes(
+				stack,
+				fmt.Sprintf("SourceSubnetToPeerRoute_%s_eachkey_%d", name, i),
+				fmt.Sprintf("SourceSubnets%d", i),
+				peer.SourceVpcId,
+				sourceProvider,
+				"tag:cdktf-source-main-rt",
+				"",
+				fmt.Sprintf("SourceSubnetRouteTable%d", i),
+				peerVpcData.CidrBlock(),
+				peering.Id(),
+				dependsOn,
+			)
 
-			// --- Peer → Source: Add routes in all peer subnet route tables to source's main CIDR ---
-			peerSubnets := dataawssubnets.NewDataAwsSubnets(stack, jsii.String(fmt.Sprintf("PeerSubnets%d", i)), &dataawssubnets.DataAwsSubnetsConfig{
-				Provider: peerProvider,
-				Filter: &[]*dataawssubnets.DataAwsSubnetsFilter{
-					{
-						Name:   jsii.String("vpc-id"),
-						Values: jsii.Strings(peer.PeerVpcId),
-					},
-				},
-			})
-			if peerSubnets.Ids() != nil {
-				for j, subnetId := range *peerSubnets.Ids() {
-					routeTable := dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(fmt.Sprintf("PeerSubnetRouteTable%d_%d", i, j)), &dataawsroutetable.DataAwsRouteTableConfig{
-						SubnetId: subnetId,
-						Provider: peerProvider,
-					})
-					awsroute.NewRoute(stack, jsii.String(fmt.Sprintf("PeerSubnetToSourceRoute%d_%d", i, j)), &awsroute.RouteConfig{
-						RouteTableId:           routeTable.Id(),
-						DestinationCidrBlock:   sourceVpcData.CidrBlock(),
-						VpcPeeringConnectionId: peering.Id(),
-						Provider:               peerProvider,
-						DependsOn:              &dependsOn,
-					})
-				}
-			}
+			// --- Create DataAwsRouteTable for Peer Subnets ---
+			CreateFilteredSubnetRoutes(
+				stack,
+				fmt.Sprintf("PeerSubnetToSourceRoute_%s_eachkey_%d", name, i),
+				fmt.Sprintf("PeerSubnets%d", i),
+				peer.PeerVpcId,
+				peerProvider,
+				"tag:cdktf-peer-main-rt",
+				"",
+				fmt.Sprintf("PeerSubnetRouteTable%d", i),
+				sourceVpcData.CidrBlock(),
+				peering.Id(),
+				dependsOn,
+			)
 		}
 	}
 
-	// -------------------------------------------------------------------------
-	// Outputs for Peering Connection and Route Tables
-	// -------------------------------------------------------------------------
-	addOutputs(stack, peers, vpcPeeringConnections, sourceMainRouteTables, peerMainRouteTables)
+	AddOutputs(stack, peers, vpcPeeringConnections, sourceMainRouteTables, peerMainRouteTables)
 	return stack
-}
-
-// -------------------------------------------------------------------------------------------------
-// Output Helper
-// -------------------------------------------------------------------------------------------------
-
-func addOutputs(stack cdktf.TerraformStack, peers []PeerConfig, vpcs []vpcpeeringconnection.VpcPeeringConnection, sourceTables []dataawsroutetable.DataAwsRouteTable, peerTables []dataawsroutetable.DataAwsRouteTable) {
-	for i := range peers {
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("VpcPeeringConnectionId_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: vpcs[i].Id(),
-		})
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("SourceMainRouteTableId_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: sourceTables[i].Id(),
-		})
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("PeerMainRouteTableId_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: peerTables[i].Id(),
-		})
-	}
-}
-
-// -------------------------------------------------------------------------------------------------
-// YAML Config Loading and Conversion
-// -------------------------------------------------------------------------------------------------
-
-func loadConfig(path string) YAMLConfig {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		log.Fatalf("failed to read config file: %v", err)
-	}
-	var cfg YAMLConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		log.Fatalf("failed to parse yaml: %v", err)
-	}
-	return cfg
-}
-
-func convertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
-	var peerConfigs []PeerConfig
-	log.Printf("[convert] Applying source filter: %q", sourceFilter)
-
-	for source, targets := range cfg.PeeringMatrix {
-		if sourceFilter != "" && source != sourceFilter {
-			continue
-		}
-		log.Printf("[convert] Considering source: %q", source)
-
-		sourcePeer, ok := cfg.Peers[source]
-		if !ok {
-			log.Fatalf("missing source peer config for %q", source)
-		}
-
-		for _, target := range targets {
-			peerPeer, ok := cfg.Peers[target]
-			if !ok {
-				log.Fatalf("missing peer config for %q", target)
-			}
-
-			enableDns := false
-			if cfg.DnsResolution != nil {
-				enableDns = cfg.DnsResolution[source]
-			}
-			hasExtraPeerRouteTables := false
-			if cfg.AdditionalRoutes != nil {
-				_, hasExtra := cfg.AdditionalRoutes[source]
-				hasExtraPeerRouteTables = hasExtra
-			}
-
-			peerConfigs = append(peerConfigs, PeerConfig{
-				SourceVpcId:             sourcePeer.VpcId,
-				SourceRegion:            sourcePeer.Region,
-				SourceRoleArn:           sourcePeer.RoleArn,
-				PeerVpcId:               peerPeer.VpcId,
-				PeerRegion:              peerPeer.Region,
-				PeerRoleArn:             peerPeer.RoleArn,
-				Name:                    target,
-				EnableDnsResolution:     enableDns,
-				HasExtraPeerRouteTables: hasExtraPeerRouteTables,
-			})
-		}
-	}
-	log.Printf("[convert] Returning %d peer configs", len(peerConfigs))
-	return peerConfigs
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -408,14 +218,18 @@ func convertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 // -------------------------------------------------------------------------------------------------
 
 func main() {
-	cfg := loadConfig("peering.yaml")
+	// --- Initialize logging ---
+	log.SetFlags(0)
+	log.SetOutput(os.Stdout)
+
+	cfg := LoadConfig("peering.yaml")
 
 	sourceID := os.Getenv("CDKTF_SOURCE")
 	if sourceID == "" {
 		sourceID = "default-source"
 	}
 
-	peers := convertToPeerConfigs(cfg, sourceID)
+	peers := ConvertToPeerConfigs(cfg, sourceID)
 
 	if len(peers) == 0 {
 		log.Fatalf("no peers matched for source: %s", sourceID)
