@@ -62,12 +62,10 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 		// --- Prepare main route table arguments and tags ---
 		sourceMainRtName := fmt.Sprintf("SourceMainRouteTable%d", i)
 		peerMainRtName := fmt.Sprintf("PeerMainRouteTable%d", i)
-		sourceMainRtTags := &map[string]*string{"cdktf-source-main-rt": jsii.String(fmt.Sprintf("mainrt-%d", i))}
-		peerMainRtTags := &map[string]*string{"cdktf-peer-main-rt": jsii.String(fmt.Sprintf("mainrt-%d", i))}
 
 		// --- Create Main Route Tables ---
-		sourceMainRt := CreateMainRouteTable(stack, sourceMainRtName, peer.SourceVpcId, sourceProvider, sourceMainRtTags)
-		peerMainRt := CreateMainRouteTable(stack, peerMainRtName, peer.PeerVpcId, peerProvider, peerMainRtTags)
+		sourceMainRt := CreateMainRouteTable(stack, sourceMainRtName, peer.SourceVpcId, sourceProvider)
+		peerMainRt := CreateMainRouteTable(stack, peerMainRtName, peer.PeerVpcId, peerProvider)
 		sourceMainRouteTables = append(sourceMainRouteTables, sourceMainRt)
 		peerMainRouteTables = append(peerMainRouteTables, peerMainRt)
 
@@ -82,6 +80,7 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 		}
 
 		// --- Only set options in aws_vpc_peering_connection_options, not here ---
+		autoAccept := sourceRegion == peerRegion
 		peeringConfig := &vpcpeeringconnection.VpcPeeringConnectionConfig{
 			VpcId:       jsii.String(peer.SourceVpcId),
 			PeerVpcId:   jsii.String(peer.PeerVpcId),
@@ -110,7 +109,6 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 		vpcPeeringConnections = append(vpcPeeringConnections, peering)
 
 		// --- If auto_accept is false, add an accepter resource in the peer account/region ---
-		autoAccept := sourceRegion == peerRegion
 		var accepter cdktf.TerraformResource
 
 		if !autoAccept {
