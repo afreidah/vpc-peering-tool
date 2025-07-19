@@ -40,6 +40,18 @@ jobs:
         with:
           terraform_version: 1.12.2
 
+      - name: Install trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo tee /etc/apt/trusted.gpg.d/trivy.gpg
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Install checkov
+        run: pip install checkov
+
       - name: Get Go dependencies
         run: make get
 
