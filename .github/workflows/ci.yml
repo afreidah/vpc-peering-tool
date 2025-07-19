@@ -38,7 +38,6 @@ jobs:
               make init
               make gofmt
               make clean
-              make build
               make synth
               make test
             "
