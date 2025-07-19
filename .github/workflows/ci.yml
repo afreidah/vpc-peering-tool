@@ -53,14 +53,8 @@ jobs:
       - name: Security checks
         run: make sec
 
-      - name: Clean
-        run: make clean
-
       - name: Build (full)
         run: make build
-
-      - name: Synthesize CDKTF
-        run: make synth
 
       - name: Run unit tests
         run: make test
