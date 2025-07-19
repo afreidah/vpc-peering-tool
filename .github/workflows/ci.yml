@@ -47,6 +47,8 @@ jobs:
 
       # Run all Makefile tests and checks in the Docker container as root
       - name: Run all Makefile tests in Docker container
+        env:
+          CDKTF_SOURCE: fake-peer-a
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
