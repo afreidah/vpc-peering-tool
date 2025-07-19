@@ -28,7 +28,6 @@ jobs:
             vpc-peering-ci \
             bash -c "
               set -ex
-              npm install -g cdktf-cli
               make get
               go mod tidy
               make init
