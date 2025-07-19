@@ -110,7 +110,8 @@ RUN terraform -version && \
 RUN groupadd --system cicd && \
     useradd  --system --gid cicd --home-dir /workspace --shell /usr/sbin/nologin cicd && \
     mkdir -p /workspace && \
-    chown -R cicd:cicd /workspace
+    chown -R cicd:cicd /workspace && \
+    mkdir -p /workspace/.npm && chown -R cicd:cicd /workspace/.npm
 
 # -----------------------------------------------------------
 # Switch to unprivileged user
