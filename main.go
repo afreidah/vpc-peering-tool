@@ -20,6 +20,20 @@ import (
 // Stack Construction
 // -------------------------------------------------------------------------------------------------
 
+/*
+NewMyStack constructs the CDKTF stack for VPC peering, bi-directional routing, and DNS management.
+
+Parameters:
+
+	scope     - The CDKTF construct scope.
+	id        - Logical stack identifier.
+	sourceID  - The source identifier for this resource.
+	peers     - Slice of PeerConfig describing all peering relationships.
+
+Returns:
+
+	cdktf.TerraformStack with all resources and outputs defined.
+*/
 func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []PeerConfig) cdktf.TerraformStack {
 	stack := cdktf.NewTerraformStack(scope, &id)
 
@@ -50,10 +64,10 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 		peerMainRouteTables = append(peerMainRouteTables, core.PeerMainRt)
 
 		// --- Prepare peering connection and related resources ---
-		peerOwnerId := GetAccountIDFromRoleArn(peer.PeerRoleArn)
+		peerOwnerID := GetAccountIDFromRoleArn(peer.PeerRoleArn)
 		name := peer.Name
 		if name == "" {
-			name = peer.PeerVpcId
+			name = peer.PeerVpcID
 		}
 		autoAccept := sourceRegion == peerRegion
 
@@ -63,7 +77,7 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 			peer,
 			core,
 			name,
-			peerOwnerId,
+			peerOwnerID,
 			autoAccept,
 			peerRegion,
 		)
@@ -88,6 +102,15 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 // Main Entrypoint
 // -------------------------------------------------------------------------------------------------
 
+/*
+main is the entrypoint for the CDKTF VPC peering stack application.
+
+- Loads configuration from peering.yaml.
+- Determines the source ID from environment or default.
+- Converts config to PeerConfig slice.
+- Fails if no peers match.
+- Synthesizes the CDKTF app.
+*/
 func main() {
 	// --- Initialize logging ---
 	log.SetFlags(0)

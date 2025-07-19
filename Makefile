@@ -51,3 +51,30 @@ build: clean get tidy synth plan
 terraform-shell:
 	cd cdktf.out/stacks/$(STACK_NAME) && terraform init && terraform plan
 
+# ------------------------------------------------------
+#  Security
+# ------------------------------------------------------
+
+sec: trivy checkov
+
+trivy:
+	trivy config .
+
+checkov:
+	checkov -d .
+
+# ------------------------------------------------------
+#  Unit tests (Terraform native)
+#   Runs 'terraform test' for native module/unit tests.
+# ------------------------------------------------------
+
+test:
+	terraform test -no-color
+
+gofmt:
+	@echo "==> gofmt (root)..."
+	@if [ -f go.mod ]; then find . -type f -name '*.go' -not -path './generated/*' -exec gofmt -s -w {} +; fi
+
+golint:
+	@echo "==> golint (root)..."
+	@if [ -f go.mod ]; then golint $(find . -type f -name '*.go' -not -path './generated/*'); fi

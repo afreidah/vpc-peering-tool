@@ -1,0 +1,38 @@
+repos:
+  # General purpose pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  # Terraform-specific (for any `.tf` files you may have)
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.81.1
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+      - id: terraform_tflint
+      - id: terraform_tfsec
+      - id: checkov
+
+  # YAML formatting (if you use YAML for config, like peering.yaml)
+  - repo: https://github.com/pre-commit/mirrors-yamllint
+    rev: v1.32.0
+    hooks:
+      - id: yamllint
+
+repos:
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.30
+    hooks:
+      - id: terraform-fmt
+      - id: terraform-validate
+      - id: tflint
+      - id: shellcheck
+      - id: gofmt
+      - id: golint
+

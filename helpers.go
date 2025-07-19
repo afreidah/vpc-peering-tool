@@ -22,19 +22,16 @@ import (
 // Struct Definitions
 // -------------------------------------------------------------------------------------------------
 
-/*
-PeerCoreResources holds the core AWS resources for a peer in a VPC peering relationship.
-
-Fields:
-
-	SourceProvider - Terraform provider for the source VPC/account.
-	PeerProvider   - Terraform provider for the peer VPC/account.
-	SourceVpcData  - Data source for the source VPC.
-	PeerVpcData    - Data source for the peer VPC.
-	SourceMainRt   - Data source for the source VPC's main route table.
-	PeerMainRt     - Data source for the peer VPC's main route table.
-*/
-
+// PeerCoreResources holds the core AWS resources for a peer in a VPC peering relationship.
+//
+// Fields:
+//
+//	SourceProvider - Terraform provider for the source VPC/account.
+//	PeerProvider   - Terraform provider for the peer VPC/account.
+//	SourceVpcData  - Data source for the source VPC.
+//	PeerVpcData    - Data source for the peer VPC.
+//	SourceMainRt   - Data source for the source VPC's main route table.
+//	PeerMainRt     - Data source for the peer VPC's main route table.
 type PeerCoreResources struct {
 	SourceProvider cdktf.TerraformProvider
 	PeerProvider   cdktf.TerraformProvider
@@ -44,83 +41,71 @@ type PeerCoreResources struct {
 	PeerMainRt     dataawsroutetable.DataAwsRouteTable
 }
 
-/*
-PeerConfig defines the configuration for a single VPC peering connection, including DNS and extra route flag.
-
-Fields:
-
-	SourceVpcId             - VPC ID of the source.
-	SourceRegion            - AWS region of the source.
-	SourceRoleArn           - IAM role ARN for the source.
-	PeerVpcId               - VPC ID of the peer.
-	PeerRegion              - AWS region of the peer.
-	PeerRoleArn             - IAM role ARN for the peer.
-	Name                    - Logical name for this peering.
-	EnableDnsResolution     - Whether to enable DNS resolution across the peering.
-	HasExtraPeerRouteTables - Whether to add subnet routes for the peer.
-*/
-
+// PeerConfig defines the configuration for a single VPC peering connection, including DNS and extra route flag.
+//
+// Fields:
+//
+//	SourceVpcID             - VPC ID of the source.
+//	SourceRegion            - AWS region of the source.
+//	SourceRoleArn           - IAM role ARN for the source.
+//	PeerVpcID               - VPC ID of the peer.
+//	PeerRegion              - AWS region of the peer.
+//	PeerRoleArn             - IAM role ARN for the peer.
+//	Name                    - Logical name for this peering.
+//	EnableDNSResolution     - Whether to enable DNS resolution across the peering.
+//	HasExtraPeerRouteTables - Whether to add subnet routes for the peer.
 type PeerConfig struct {
-	SourceVpcId             string
+	SourceVpcID             string
 	SourceRegion            string
 	SourceRoleArn           string
-	PeerVpcId               string
+	PeerVpcID               string
 	PeerRegion              string
 	PeerRoleArn             string
 	Name                    string
-	EnableDnsResolution     bool
+	EnableDNSResolution     bool
 	HasExtraPeerRouteTables bool // Controls whether to add subnet routes
 }
 
-/*
-YAMLPeer represents a peer entry in the YAML file.
-
-Fields:
-
-	VpcId               - VPC ID.
-	Region              - AWS region.
-	RoleArn             - IAM role ARN.
-	DnsResolution       - Enable DNS resolution.
-	HasAdditionalRoutes - Enable additional subnet routes.
-*/
-
+// YAMLPeer represents a peer entry in the YAML file.
+//
+// Fields:
+//
+//	VpcID               - VPC ID.
+//	Region              - AWS region.
+//	RoleArn             - IAM role ARN.
+//	DNSResolution       - Enable DNS resolution.
+//	HasAdditionalRoutes - Enable additional subnet routes.
 type YAMLPeer struct {
-	VpcId               string `yaml:"vpc_id"`
+	VpcID               string `yaml:"vpc_id"`
 	Region              string `yaml:"region"`
 	RoleArn             string `yaml:"role_arn"`
-	DnsResolution       bool   `yaml:"dns_resolution"`
+	DNSResolution       bool   `yaml:"dns_resolution"`
 	HasAdditionalRoutes bool   `yaml:"has_additional_routes"`
 }
 
-/*
-YAMLConfig holds the structure of the YAML configuration file, including DNS and extra route flag.
-
-Fields:
-
-	Peers            - Map of peer names to YAMLPeer definitions.
-	PeeringMatrix    - Map of source peer names to lists of target peer names.
-	DnsResolution    - Optional map of peer names to DNS resolution flags.
-	AdditionalRoutes - Optional map of peer names to additional route lists.
-*/
-
+// YAMLConfig holds the structure of the YAML configuration file, including DNS and extra route flag.
+//
+// Fields:
+//
+//	Peers            - Map of peer names to YAMLPeer definitions.
+//	PeeringMatrix    - Map of source peer names to lists of target peer names.
+//	DNSResolution    - Optional map of peer names to DNS resolution flags.
+//	AdditionalRoutes - Optional map of peer names to additional route lists.
 type YAMLConfig struct {
 	Peers            map[string]YAMLPeer `yaml:"peers"`
 	PeeringMatrix    map[string][]string `yaml:"peering_matrix"`
-	DnsResolution    map[string]bool     `yaml:"dns_resolution,omitempty"`
+	DNSResolution    map[string]bool     `yaml:"dns_resolution,omitempty"`
 	AdditionalRoutes map[string][]string `yaml:"additional_routes,omitempty"`
 }
 
-/*
-PeeringResources holds the resources related to a single VPC peering connection.
-
-Fields:
-
-	Peering   - The VPC peering connection resource.
-	Accepter  - The accepter resource (if cross-account/region).
-	Options   - The peering options resource.
-	DependsOn - List of dependencies for downstream resources.
-*/
-
+// PeeringResources holds the resources related to a single VPC peering connection.
+//
+// Fields:
+//
+//	Peering   - The VPC peering connection resource.
+//	Accepter  - The accepter resource (if cross-account/region).
+//	Options   - The peering options resource.
+//	DependsOn - List of dependencies for downstream resources.
 type PeeringResources struct {
 	Peering   vpcpeeringconnection.VpcPeeringConnection
 	Accepter  cdktf.TerraformResource
@@ -131,16 +116,16 @@ type PeeringResources struct {
 // -------------------------------------------------------------------------------------------------
 // Helper: Extract account ID from role ARN
 // -------------------------------------------------------------------------------------------------
-/*
-GetAccountIDFromRoleArn extracts the AWS account ID from a role ARN string.
 
-Parameters:
-  roleArn - The IAM role ARN string.
-
-Returns:
-  The AWS account ID as a string, or an empty string if not found.
-*/
-
+// GetAccountIDFromRoleArn extracts the AWS account ID from a role ARN string.
+//
+// Parameters:
+//
+//	roleArn - The IAM role ARN string.
+//
+// Returns:
+//
+//	The AWS account ID as a string, or an empty string if not found.
 func GetAccountIDFromRoleArn(roleArn string) string {
 	re := regexp.MustCompile(`^arn:aws:iam::(\d+):`)
 	matches := re.FindStringSubmatch(roleArn)
@@ -153,19 +138,20 @@ func GetAccountIDFromRoleArn(roleArn string) string {
 // -------------------------------------------------------------------------------------------------
 // YAML Config Loading and Conversion
 // -------------------------------------------------------------------------------------------------
-/*
-LoadConfig loads and parses the YAML configuration file at the given path.
 
-Parameters:
-  path - Path to the YAML config file.
-
-Returns:
-  YAMLConfig struct populated from the file.
-
-Panics:
-  If the file cannot be read or parsed.
-*/
-
+// LoadConfig loads and parses the YAML configuration file at the given path.
+//
+// Parameters:
+//
+//	path - Path to the YAML config file.
+//
+// Returns:
+//
+//	YAMLConfig struct populated from the file.
+//
+// Panics:
+//
+//	If the file cannot be read or parsed.
 func LoadConfig(path string) YAMLConfig {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -181,20 +167,21 @@ func LoadConfig(path string) YAMLConfig {
 // --------------------------------------------------------------------------------------------------
 // Convert YAML Config to PeerConfig
 // --------------------------------------------------------------------------------------------------
-/*
-ConvertToPeerConfigs converts a YAMLConfig and source filter into a slice of PeerConfig structs.
 
-Parameters:
-  cfg          - The loaded YAMLConfig.
-  sourceFilter - If non-empty, only include peers with this source.
-
-Returns:
-  Slice of PeerConfig structs for use in stack construction.
-
-Panics:
-  If required peer config entries are missing.
-*/
-
+// ConvertToPeerConfigs converts a YAMLConfig and source filter into a slice of PeerConfig structs.
+//
+// Parameters:
+//
+//	cfg          - The loaded YAMLConfig.
+//	sourceFilter - If non-empty, only include peers with this source.
+//
+// Returns:
+//
+//	Slice of PeerConfig structs for use in stack construction.
+//
+// Panics:
+//
+//	If required peer config entries are missing.
 func ConvertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 	var peerConfigs []PeerConfig
 	log.Printf("[convert] Applying source filter: %q", sourceFilter)
@@ -217,14 +204,14 @@ func ConvertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 			}
 
 			peerConfigs = append(peerConfigs, PeerConfig{
-				SourceVpcId:             sourcePeer.VpcId,
+				SourceVpcID:             sourcePeer.VpcID,
 				SourceRegion:            sourcePeer.Region,
 				SourceRoleArn:           sourcePeer.RoleArn,
-				PeerVpcId:               peerPeer.VpcId,
+				PeerVpcID:               peerPeer.VpcID,
 				PeerRegion:              peerPeer.Region,
 				PeerRoleArn:             peerPeer.RoleArn,
 				Name:                    target,
-				EnableDnsResolution:     peerPeer.DnsResolution,
+				EnableDNSResolution:     peerPeer.DNSResolution,
 				HasExtraPeerRouteTables: peerPeer.HasAdditionalRoutes,
 			})
 		}
@@ -236,20 +223,20 @@ func ConvertToPeerConfigs(cfg YAMLConfig, sourceFilter string) []PeerConfig {
 // -------------------------------------------------------------------------------------------------
 // Create AWS Provider
 // -------------------------------------------------------------------------------------------------
-/*
-CreateAwsProvider creates a new AWS provider resource with the given configuration.
 
-Parameters:
-  stack   - The CDKTF construct stack.
-  name    - Logical name for the provider resource.
-  alias   - Provider alias.
-  region  - AWS region.
-  roleArn - IAM role ARN for assume role.
-
-Returns:
-  awsprovider.AwsProvider resource.
-*/
-
+// CreateAwsProvider creates a new AWS provider resource with the given configuration.
+//
+// Parameters:
+//
+//	stack   - The CDKTF construct stack.
+//	name    - Logical name for the provider resource.
+//	alias   - Provider alias.
+//	region  - AWS region.
+//	roleArn - IAM role ARN for assume role.
+//
+// Returns:
+//
+//	awsprovider.AwsProvider resource.
 func CreateAwsProvider(stack constructs.Construct, name, alias, region, roleArn string) awsprovider.AwsProvider {
 	return awsprovider.NewAwsProvider(stack, jsii.String(name), &awsprovider.AwsProviderConfig{
 		Region: jsii.String(region),
@@ -263,22 +250,22 @@ func CreateAwsProvider(stack constructs.Construct, name, alias, region, roleArn 
 // -------------------------------------------------------------------------------------------------
 // Create Data Sources for VPC
 // -------------------------------------------------------------------------------------------------
-/*
-CreateDataAwsVpc creates a data source for an AWS VPC.
 
-Parameters:
-  stack   - The CDKTF construct stack.
-  name    - Logical name for the data source.
-  vpcId   - VPC ID to look up.
-  provider- AWS provider to use.
-
-Returns:
-  dataawsvpc.DataAwsVpc resource.
-*/
-
-func CreateDataAwsVpc(stack constructs.Construct, name, vpcId string, provider awsprovider.AwsProvider) dataawsvpc.DataAwsVpc {
+// CreateDataAwsVpc creates a data source for an AWS VPC.
+//
+// Parameters:
+//
+//	stack   - The CDKTF construct stack.
+//	name    - Logical name for the data source.
+//	vpcID   - VPC ID to look up.
+//	provider- AWS provider to use.
+//
+// Returns:
+//
+//	dataawsvpc.DataAwsVpc resource.
+func CreateDataAwsVpc(stack constructs.Construct, name, vpcID string, provider awsprovider.AwsProvider) dataawsvpc.DataAwsVpc {
 	return dataawsvpc.NewDataAwsVpc(stack, jsii.String(name), &dataawsvpc.DataAwsVpcConfig{
-		Id:       jsii.String(vpcId),
+		Id:       jsii.String(vpcID),
 		Provider: provider,
 	})
 }
@@ -286,22 +273,22 @@ func CreateDataAwsVpc(stack constructs.Construct, name, vpcId string, provider a
 // -------------------------------------------------------------------------------------------------
 // Create Data Source for Main Route Table
 // -------------------------------------------------------------------------------------------------
-/*
-CreateMainRouteTable creates a data source for the main route table of a VPC.
 
-Parameters:
-  stack    - The CDKTF construct stack.
-  name     - Logical name for the data source.
-  vpcId    - VPC ID to look up.
-  provider - AWS provider to use.
-
-Returns:
-  dataawsroutetable.DataAwsRouteTable resource.
-*/
-
-func CreateMainRouteTable(stack constructs.Construct, name, vpcId string, provider awsprovider.AwsProvider) dataawsroutetable.DataAwsRouteTable {
+// CreateMainRouteTable creates a data source for the main route table of a VPC.
+//
+// Parameters:
+//
+//	stack    - The CDKTF construct stack.
+//	name     - Logical name for the data source.
+//	vpcID    - VPC ID to look up.
+//	provider - AWS provider to use.
+//
+// Returns:
+//
+//	dataawsroutetable.DataAwsRouteTable resource.
+func CreateMainRouteTable(stack constructs.Construct, name, vpcID string, provider awsprovider.AwsProvider) dataawsroutetable.DataAwsRouteTable {
 	return dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(name), &dataawsroutetable.DataAwsRouteTableConfig{
-		VpcId:    jsii.String(vpcId),
+		VpcId:    jsii.String(vpcID),
 		Provider: provider,
 		Filter: &[]*dataawsroutetable.DataAwsRouteTableFilter{{
 			Name:   jsii.String("association.main"),
@@ -313,20 +300,20 @@ func CreateMainRouteTable(stack constructs.Construct, name, vpcId string, provid
 // -------------------------------------------------------------------------------------------------
 // Output Helper
 // -------------------------------------------------------------------------------------------------
-/*
-AddOutputs creates enhanced Terraform outputs for peering connection, main route table IDs,
-peering connection status, and DNS resolution settings.
 
-Parameters:
-  stack           - The CDKTF Terraform stack.
-  peers           - Slice of PeerConfig.
-  vpcs            - Slice of VpcPeeringConnection resources.
-  sourceTables    - Slice of DataAwsRouteTable for source VPCs.
-  peerTables      - Slice of DataAwsRouteTable for peer VPCs.
-
-Side Effects:
-  - Adds Terraform outputs to the stack for IDs, status, and DNS settings.
-*/
+// AddOutputs creates enhanced Terraform outputs for peering connection, main route table IDs,
+// peering connection status, and DNS resolution settings.
+//
+// Parameters:
+//
+//	stack           - The CDKTF Terraform stack.
+//	peers           - Slice of PeerConfig.
+//	vpcs            - Slice of VpcPeeringConnection resources.
+//	sourceTables    - Slice of DataAwsRouteTable for source VPCs.
+//	peerTables      - Slice of DataAwsRouteTable for peer VPCs.
+//
+// Side Effects:
+//   - Adds Terraform outputs to the stack for IDs, status, and DNS settings.
 func AddOutputs(
 	stack cdktf.TerraformStack,
 	peers []PeerConfig,
@@ -350,136 +337,117 @@ func AddOutputs(
 			Value: peerTables[i].Id(),
 		})
 
-		// --- Output Peering Connection Status ---
-		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("VpcPeeringConnectionStatus_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: vpcs[i].GetStringAttribute(jsii.String("status")),
-		})
-
 		// --- Output DNS Resolution Setting ---
 		cdktf.NewTerraformOutput(stack, jsii.String(fmt.Sprintf("DnsResolutionEnabled_%d", i)), &cdktf.TerraformOutputConfig{
-			Value: peers[i].EnableDnsResolution,
+			Value: peers[i].EnableDNSResolution,
 		})
 	}
 }
 
-// -------------------------------------------------------------------------------------------------
-// Create Route Helper
-// -------------------------------------------------------------------------------------------------
-/*
-CreateRoute creates a route in a given route table for a VPC peering connection.
+// CreateSubnetRoutes creates routes for each subnet in a VPC using a TerraformIterator escape hatch.
+//
+// Parameters:
+//
+//	stack      - The CDKTF Terraform stack.
+//	namePrefix - Prefix for resource names.
+//	subnetIDs  - List of subnet IDs.
+//	provider   - AWS provider to use.
+//	destCidr   - Destination CIDR block.
+//	peeringID  - VPC peering connection ID.
+//	dependsOn  - List of dependencies for this resource.
+//
+// Side Effects:
+//   - Adds aws_route and data_aws_route_table resources for each subnet.
+func CreateSubnetRoutes(
+	stack cdktf.TerraformStack,
+	namePrefix string,
+	subnetIDs *[]*string,
+	provider cdktf.TerraformProvider,
+	destCidr *string,
+	peeringID *string,
+	dependsOn []cdktf.ITerraformDependable,
+) {
+	iterator := cdktf.TerraformIterator_FromList(subnetIDs)
+	dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(namePrefix+"RouteTable"), &dataawsroutetable.DataAwsRouteTableConfig{
+		ForEach:  iterator,
+		SubnetId: jsii.String("${each.value}"),
+		Provider: provider,
+	})
+	awsroute.NewRoute(stack, jsii.String(namePrefix+"Route"), &awsroute.RouteConfig{
+		ForEach:                iterator,
+		RouteTableId:           jsii.String("${data.aws_route_table." + namePrefix + "RouteTable[each.key].id}"),
+		DestinationCidrBlock:   destCidr,
+		VpcPeeringConnectionId: peeringID,
+		Provider:               provider,
+		DependsOn:              &dependsOn,
+	})
+}
 
-Parameters:
-  stack        - The CDKTF Terraform stack.
-  name         - Logical name for the route resource.
-  routeTableId - ID of the route table.
-  destCidr     - Destination CIDR block.
-  peeringId    - VPC peering connection ID.
-  provider     - AWS provider to use.
-  dependsOn    - List of dependencies for this resource.
-
-Side Effects:
-  - Adds an aws_route resource to the stack.
-*/
-
+// CreateRoute creates a route in a given route table for a VPC peering connection.
+//
+// Parameters:
+//
+//	stack        - The CDKTF Terraform stack.
+//	name         - Logical name for the route resource.
+//	routeTableID - ID of the route table.
+//	destCidr     - Destination CIDR block.
+//	peeringID    - VPC peering connection ID.
+//	provider     - AWS provider to use.
+//	dependsOn    - List of dependencies for this resource.
+//
+// Side Effects:
+//   - Adds an aws_route resource to the stack.
 func CreateRoute(
 	stack cdktf.TerraformStack,
 	name string,
-	routeTableId *string,
+	routeTableID *string,
 	destCidr *string,
-	peeringId *string,
+	peeringID *string,
 	provider cdktf.TerraformProvider,
 	dependsOn []cdktf.ITerraformDependable,
 ) {
 	awsroute.NewRoute(stack, jsii.String(name), &awsroute.RouteConfig{
-		RouteTableId:           routeTableId,
+		RouteTableId:           routeTableID,
 		DestinationCidrBlock:   destCidr,
-		VpcPeeringConnectionId: peeringId,
+		VpcPeeringConnectionId: peeringID,
 		Provider:               provider,
 		DependsOn:              &dependsOn,
 	})
 }
 
 // -------------------------------------------------------------------------------------------------
-// Create Subnet Routes for Peering Connections
-// -------------------------------------------------------------------------------------------------
-/*
-CreateSubnetRoutes creates routes for each subnet in a VPC using a TerraformIterator escape hatch.
-
-Parameters:
-  stack              - The CDKTF Terraform stack.
-  namePrefix         - Prefix for resource names.
-  subnetIds          - List of subnet IDs.
-  dataRouteTableName - Logical name for the data source.
-  provider           - AWS provider to use.
-  destCidr           - Destination CIDR block.
-  peeringId          - VPC peering connection ID.
-  dependsOn          - List of dependencies for this resource.
-
-Side Effects:
-  - Adds aws_route and data_aws_route_table resources for each subnet.
-*/
-
-func CreateSubnetRoutes(
-	stack cdktf.TerraformStack,
-	namePrefix string,
-	subnetIds *[]*string,
-	dataRouteTableName string,
-	provider cdktf.TerraformProvider,
-	destCidr *string,
-	peeringId *string,
-	dependsOn []cdktf.ITerraformDependable,
-) {
-	iterator := cdktf.TerraformIterator_FromList(subnetIds)
-	dataawsroutetable.NewDataAwsRouteTable(stack, jsii.String(dataRouteTableName), &dataawsroutetable.DataAwsRouteTableConfig{
-		ForEach:  iterator,
-		SubnetId: jsii.String("${each.value}"),
-		Provider: provider,
-	})
-	CreateRoute(
-		stack,
-		namePrefix,
-		jsii.String("${each.value.id}"),
-		destCidr,
-		peeringId,
-		provider,
-		dependsOn,
-	)
-}
-
-// -------------------------------------------------------------------------------------------------
 // Create Filtered Subnet Routes
 // -------------------------------------------------------------------------------------------------
-/*
-CreateFilteredSubnetRoutes creates subnet routes for subnets matching a tag filter.
 
-Parameters:
-  stack                  - The CDKTF Terraform stack.
-  namePrefix             - Prefix for resource names.
-  subnetResourceName     - Logical name for the subnet data source.
-  vpcId                  - VPC ID to filter subnets.
-  provider               - AWS provider to use.
-  tagFilterName          - Tag name to filter subnets.
-  tagFilterValue         - Tag value to filter subnets.
-  routeTableResourceName - Logical name for the route table data source.
-  destCidr               - Destination CIDR block.
-  peeringId              - VPC peering connection ID.
-  dependsOn              - List of dependencies for this resource.
-
-Side Effects:
-  - Adds subnet route resources for matching subnets.
-*/
-
+// CreateFilteredSubnetRoutes creates subnet routes for subnets matching a tag filter.
+//
+// Parameters:
+//
+//	stack                  - The CDKTF Terraform stack.
+//	namePrefix             - Prefix for resource names.
+//	subnetResourceName     - Logical name for the subnet data source.
+//	vpcID                  - VPC ID to filter subnets.
+//	provider               - AWS provider to use.
+//	tagFilterName          - Tag name to filter subnets.
+//	tagFilterValue         - Tag value to filter subnets.
+//	routeTableResourceName - Logical name for the route table data source.
+//	destCidr               - Destination CIDR block.
+//	peeringID              - VPC peering connection ID.
+//	dependsOn              - List of dependencies for this resource.
+//
+// Side Effects:
+//   - Adds subnet route resources for matching subnets.
 func CreateFilteredSubnetRoutes(
 	stack cdktf.TerraformStack,
 	namePrefix string,
 	subnetResourceName string,
-	vpcId string,
+	vpcID string,
 	provider cdktf.TerraformProvider,
 	tagFilterName string,
 	tagFilterValue string,
 	routeTableResourceName string,
 	destCidr *string,
-	peeringId *string,
+	peeringID *string,
 	dependsOn []cdktf.ITerraformDependable,
 ) {
 	subnets := dataawssubnets.NewDataAwsSubnets(stack, jsii.String(subnetResourceName), &dataawssubnets.DataAwsSubnetsConfig{
@@ -487,7 +455,7 @@ func CreateFilteredSubnetRoutes(
 		Filter: &[]*dataawssubnets.DataAwsSubnetsFilter{
 			{
 				Name:   jsii.String("vpc-id"),
-				Values: jsii.Strings(vpcId),
+				Values: jsii.Strings(vpcID),
 			},
 			{
 				Name:   jsii.String(tagFilterName),
@@ -497,36 +465,27 @@ func CreateFilteredSubnetRoutes(
 	})
 
 	if subnets.Ids() != nil {
-		CreateSubnetRoutes(
-			stack,
-			namePrefix,
-			subnets.Ids(),
-			routeTableResourceName,
-			provider,
-			destCidr,
-			peeringId,
-			dependsOn,
-		)
+		CreateSubnetRoutes(stack, namePrefix, subnets.Ids(), provider, destCidr, peeringID, dependsOn)
 	}
 }
 
 // -------------------------------------------------------------------------------------------------
 // Setup core AWS resources for a peer
 // -------------------------------------------------------------------------------------------------
-/*
-SetupPeerCoreResources creates all core AWS provider and data source resources for a peer.
 
-Parameters:
-  stack        - The CDKTF Terraform stack.
-  i            - Index of the peer (for unique naming).
-  peer         - PeerConfig for this peer.
-  sourceRegion - AWS region for the source.
-  peerRegion   - AWS region for the peer.
-
-Returns:
-  PeerCoreResources struct with all created resources.
-*/
-
+// SetupPeerCoreResources creates all core AWS provider and data source resources for a peer.
+//
+// Parameters:
+//
+//	stack        - The CDKTF Terraform stack.
+//	i            - Index of the peer (for unique naming).
+//	peer         - PeerConfig for this peer.
+//	sourceRegion - AWS region for the source.
+//	peerRegion   - AWS region for the peer.
+//
+// Returns:
+//
+//	PeerCoreResources struct with all created resources.
 func SetupPeerCoreResources(
 	stack cdktf.TerraformStack,
 	i int,
@@ -542,13 +501,13 @@ func SetupPeerCoreResources(
 
 	sourceVpcName := fmt.Sprintf("SourceVpcData%d", i)
 	peerVpcName := fmt.Sprintf("PeerVpcData%d", i)
-	sourceVpcData := CreateDataAwsVpc(stack, sourceVpcName, peer.SourceVpcId, sourceProvider)
-	peerVpcData := CreateDataAwsVpc(stack, peerVpcName, peer.PeerVpcId, peerProvider)
+	sourceVpcData := CreateDataAwsVpc(stack, sourceVpcName, peer.SourceVpcID, sourceProvider)
+	peerVpcData := CreateDataAwsVpc(stack, peerVpcName, peer.PeerVpcID, peerProvider)
 
 	sourceMainRtName := fmt.Sprintf("SourceMainRouteTable%d", i)
 	peerMainRtName := fmt.Sprintf("PeerMainRouteTable%d", i)
-	sourceMainRt := CreateMainRouteTable(stack, sourceMainRtName, peer.SourceVpcId, sourceProvider)
-	peerMainRt := CreateMainRouteTable(stack, peerMainRtName, peer.PeerVpcId, peerProvider)
+	sourceMainRt := CreateMainRouteTable(stack, sourceMainRtName, peer.SourceVpcID, sourceProvider)
+	peerMainRt := CreateMainRouteTable(stack, peerMainRtName, peer.PeerVpcID, peerProvider)
 
 	return PeerCoreResources{
 		SourceProvider: sourceProvider,
@@ -563,45 +522,45 @@ func SetupPeerCoreResources(
 // -------------------------------------------------------------------------------------------------
 // Peering Resources Helper: Creates peering connection, accepter, and options resources
 // -------------------------------------------------------------------------------------------------
-/*
-CreatePeeringResources creates the VPC peering connection, conditional accepter, and options resources.
 
-Parameters:
-  stack       - The CDKTF Terraform stack.
-  i           - Index of the peer (for unique naming).
-  peer        - PeerConfig for this peer.
-  core        - PeerCoreResources for this peer.
-  name        - Logical name for this peering.
-  peerOwnerId - AWS account ID of the peer.
-  autoAccept  - Whether to auto-accept the peering.
-  peerRegion  - AWS region for the peer.
-
-Returns:
-  PeeringResources struct with all created resources and dependencies.
-*/
-
+// CreatePeeringResources creates the VPC peering connection, conditional accepter, and options resources.
+//
+// Parameters:
+//
+//	stack       - The CDKTF Terraform stack.
+//	i           - Index of the peer (for unique naming).
+//	peer        - PeerConfig for this peer.
+//	core        - PeerCoreResources for this peer.
+//	name        - Logical name for this peering.
+//	peerOwnerID - AWS account ID of the peer.
+//	autoAccept  - Whether to auto-accept the peering.
+//	peerRegion  - AWS region for the peer.
+//
+// Returns:
+//
+//	PeeringResources struct with all created resources and dependencies.
 func CreatePeeringResources(
 	stack cdktf.TerraformStack,
 	i int,
 	peer PeerConfig,
 	core PeerCoreResources,
 	name string,
-	peerOwnerId string,
+	peerOwnerID string,
 	autoAccept bool,
 	peerRegion string,
 ) PeeringResources {
 	// --- Build peering connection config ---
 	peeringConfig := &vpcpeeringconnection.VpcPeeringConnectionConfig{
-		VpcId:       jsii.String(peer.SourceVpcId),
-		PeerVpcId:   jsii.String(peer.PeerVpcId),
-		PeerOwnerId: jsii.String(peerOwnerId),
+		VpcId:       jsii.String(peer.SourceVpcID),
+		PeerVpcId:   jsii.String(peer.PeerVpcID),
+		PeerOwnerId: jsii.String(peerOwnerID),
 		Provider:    core.SourceProvider,
 		AutoAccept:  jsii.Bool(autoAccept),
 		Tags: &map[string]*string{
 			"Name":        jsii.String(fmt.Sprintf("Connection to %s", name)),
 			"ManagedBy":   jsii.String("cdktf"),
-			"SourceVpcId": jsii.String(peer.SourceVpcId),
-			"PeerVpcId":   jsii.String(peer.PeerVpcId),
+			"SourceVpcId": jsii.String(peer.SourceVpcID),
+			"PeerVpcId":   jsii.String(peer.PeerVpcID),
 		},
 	}
 	if core.SourceProvider != core.PeerProvider {
@@ -629,8 +588,8 @@ func CreatePeeringResources(
 			"Name":        fmt.Sprintf("Connection to %s", name),
 			"Environment": "production",
 			"ManagedBy":   "cdktf",
-			"SourceVpcId": peer.SourceVpcId,
-			"PeerVpcId":   peer.PeerVpcId,
+			"SourceVpcId": peer.SourceVpcID,
+			"PeerVpcId":   peer.PeerVpcID,
 		})
 	}
 
@@ -647,7 +606,7 @@ func CreatePeeringResources(
 		DependsOn:             &optionsDependsOn,
 	})
 	opts.AddOverride(jsii.String("vpc_peering_connection_id"), peering.Id())
-	opts.AddOverride(jsii.String("requester.allow_remote_vpc_dns_resolution"), peer.EnableDnsResolution)
+	opts.AddOverride(jsii.String("requester.allow_remote_vpc_dns_resolution"), peer.EnableDNSResolution)
 
 	// --- Prepare dependsOn for downstream resources ---
 	var dependsOn []cdktf.ITerraformDependable
@@ -667,38 +626,38 @@ func CreatePeeringResources(
 // -------------------------------------------------------------------------------------------------
 // Create bi-directional subnet routes for a peer if extra route tables are enabled
 // -------------------------------------------------------------------------------------------------
-/*
-CreateBiDirectionalSubnetRoutes creates all main and subnet route table entries required for
-bi-directional routing between two VPCs in a peering relationship.
 
-This function:
-  - Adds a route from the source VPC's main route table to the peer VPC's CIDR via the peering connection.
-  - Adds a reverse route from the peer VPC's main route table to the source VPC's CIDR via the peering connection.
-  - If HasExtraPeerRouteTables is enabled, creates additional subnet route table entries for both source and peer VPCs,
-    using tag-based filtering and CDKTF's TerraformIterator escape hatch for dynamic resource creation.
-
-Parameters:
-  stack      - The CDKTF Terraform stack context.
-  peer       - The PeerConfig struct describing the current peering relationship.
-  core       - PeerCoreResources containing providers, VPC data, and main route tables for both sides.
-  peeringRes - PeeringResources containing the peering connection, accepter, options, and dependency chain.
-  name       - A unique name for resource naming and tagging.
-  i          - The index of the current peer in the iteration (for unique resource names).
-
-Side Effects:
-  - Creates AWS route and data source resources in the provided stack.
-  - Uses CDKTF escape hatches for dynamic subnet route creation.
-
-Example:
-  CreateBiDirectionalSubnetRoutes(stack, peer, core, peeringRes, "my-peer", 0)
-
-See Also:
-  - CreateRoute
-  - CreateFilteredSubnetRoutes
-  - PeerCoreResources
-  - PeeringResources
-*/
-
+// CreateBiDirectionalSubnetRoutes creates all main and subnet route table entries required for
+// bi-directional routing between two VPCs in a peering relationship.
+//
+// This function:
+//   - Adds a route from the source VPC's main route table to the peer VPC's CIDR via the peering connection.
+//   - Adds a reverse route from the peer VPC's main route table to the source VPC's CIDR via the peering connection.
+//   - If HasExtraPeerRouteTables is enabled, creates additional subnet route table entries for both source and peer VPCs,
+//     using tag-based filtering and CDKTF's TerraformIterator escape hatch for dynamic resource creation.
+//
+// Parameters:
+//
+//	stack      - The CDKTF Terraform stack context.
+//	peer       - The PeerConfig struct describing the current peering relationship.
+//	core       - PeerCoreResources containing providers, VPC data, and main route tables for both sides.
+//	peeringRes - PeeringResources containing the peering connection, accepter, options, and dependency chain.
+//	name       - A unique name for resource naming and tagging.
+//	i          - The index of the current peer in the iteration (for unique resource names).
+//
+// Side Effects:
+//   - Creates AWS route and data source resources in the provided stack.
+//   - Uses CDKTF escape hatches for dynamic subnet route creation.
+//
+// Example:
+//
+//	CreateBiDirectionalSubnetRoutes(stack, peer, core, peeringRes, "my-peer", 0)
+//
+// See Also:
+//   - CreateRoute
+//   - CreateFilteredSubnetRoutes
+//   - PeerCoreResources
+//   - PeeringResources
 func CreateBiDirectionalSubnetRoutes(
 	stack cdktf.TerraformStack,
 	peer PeerConfig,
@@ -736,7 +695,7 @@ func CreateBiDirectionalSubnetRoutes(
 			stack,
 			fmt.Sprintf("SourceSubnetToPeerRoute_%s_eachkey_%d", name, i),
 			fmt.Sprintf("SourceSubnets%d", i),
-			peer.SourceVpcId,
+			peer.SourceVpcID,
 			core.SourceProvider,
 			"tag:cdktf-source-main-rt",
 			"",
@@ -751,7 +710,7 @@ func CreateBiDirectionalSubnetRoutes(
 			stack,
 			fmt.Sprintf("PeerSubnetToSourceRoute_%s_eachkey_%d", name, i),
 			fmt.Sprintf("PeerSubnets%d", i),
-			peer.PeerVpcId,
+			peer.PeerVpcID,
 			core.PeerProvider,
 			"tag:cdktf-peer-main-rt",
 			"",
