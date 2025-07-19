@@ -30,8 +30,11 @@ jobs:
       - name: Install CDKTF CLI
         run: npm install -g cdktf-cli
 
+      - name: Get Go dependencies
+        run: make get
+
       - name: Install Go dependencies
-        run: go mod tidy
+        run: make tidy
 
       - name: Install Node dependencies
         run: npm install
