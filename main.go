@@ -119,10 +119,7 @@ func main() {
 	cfg := LoadConfig("peering.yaml")
 
 	sourceID := os.Getenv("CDKTF_SOURCE")
-	if sourceID == "" {
-		sourceID = "default-source"
-	}
-
+	// If CDKTF_SOURCE is not set, use "" to match all sources in ConvertToPeerConfigs
 	peers := ConvertToPeerConfigs(cfg, sourceID)
 
 	if len(peers) == 0 {
