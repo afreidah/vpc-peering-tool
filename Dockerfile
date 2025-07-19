@@ -114,6 +114,12 @@ RUN groupadd --system cicd && \
     mkdir -p /workspace/.npm && chown -R cicd:cicd /workspace/.npm
 
 # -----------------------------------------------------------
+# Install CDKTF CLI globally as root
+# -----------------------------------------------------------
+
+RUN npm install -g cdktf-cli
+
+# -----------------------------------------------------------
 # Switch to unprivileged user
 # -----------------------------------------------------------
 
