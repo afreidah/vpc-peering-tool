@@ -1,6 +1,7 @@
 # ------------------------------------------------------------------------------
 # GitHub Actions CI for CDKTF (Go) project with AWS provider
 # Builds and uses a Docker image for all IaC tools and runs all Makefile tests
+# Scanning and linting steps ignore the generated/ directory
 # ------------------------------------------------------------------------------
 
 name: CI
@@ -14,12 +15,15 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      # Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Build the Docker image defined in the repo's Dockerfile
       - name: Build CI Docker image
         run: docker build -t vpc-peering-ci .
 
+      # Run all Makefile tests and checks in the Docker container as root
       - name: Run all Makefile tests in Docker container
         run: |
           docker run --rm \
@@ -33,10 +37,31 @@ jobs:
               go mod tidy
               make init
               make gofmt
-              make golint
-              make sec
               make clean
               make build
               make synth
               make test
+            "
+
+      # Run golint, ignoring generated/ directory
+      - name: Run golint (ignore generated/)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            --user root \
+            vpc-peering-ci \
+            golint $(find . -type f -name '*.go' -not -path './generated/*')
+
+      # Run security checks, ignoring generated/ directory
+      - name: Security checks (ignore generated/)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            --user root \
+            vpc-peering-ci \
+            bash -c "
+              trivy config --skip-dirs generated . && \
+              checkov -d . --skip-path generated
             "
