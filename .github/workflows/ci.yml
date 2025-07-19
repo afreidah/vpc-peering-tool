@@ -27,15 +27,16 @@ jobs:
             -w /workspace \
             vpc-peering-ci \
             bash -c "
-              npm install -g cdktf-cli && \
-              make get && \
-              go mod tidy && \
-              make init && \
-              make gofmt && \
-              make golint && \
-              make sec && \
-              make clean && \
-              make build && \
-              make synth && \
+              set -ex
+              npm install -g cdktf-cli
+              make get
+              go mod tidy
+              make init
+              make gofmt
+              make golint
+              make sec
+              make clean
+              make build
+              make synth
               make test
             "
