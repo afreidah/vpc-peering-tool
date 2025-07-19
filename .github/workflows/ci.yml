@@ -28,6 +28,8 @@ jobs:
             vpc-peering-ci \
             bash -c "
               set -ex
+              mkdir -p /workspace/.terraform.d && chown cicd:cicd /workspace/.terraform.d
+              mkdir -p /workspace/.npm && chown cicd:cicd /workspace/.npm
               make get
               go mod tidy
               make init
