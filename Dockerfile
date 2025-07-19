@@ -111,7 +111,8 @@ RUN groupadd --system cicd && \
     useradd  --system --gid cicd --home-dir /workspace --shell /usr/sbin/nologin cicd && \
     mkdir -p /workspace && \
     chown -R cicd:cicd /workspace && \
-    mkdir -p /workspace/.npm && chown -R cicd:cicd /workspace/.npm
+    mkdir -p /workspace/.npm && chown -R cicd:cicd /workspace/.npm && \
+    mkdir -p /workspace/.terraform.d && chown -R cicd:cicd /workspace/.terraform.d
 
 # -----------------------------------------------------------
 # Install CDKTF CLI globally as root
