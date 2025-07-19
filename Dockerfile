@@ -32,6 +32,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------
+# Node.js (LTS) and npm (required for cdktf-cli)
+# -----------------------------------------------------------
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
+
+# -----------------------------------------------------------
 # Go tool-chain (from longsleep PPA for fresh 1.22.x)         • AVD-DS-0029
 # -----------------------------------------------------------
 
