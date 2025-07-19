@@ -682,7 +682,7 @@ func CreateBiDirectionalSubnetRoutes(
 		stack,
 		fmt.Sprintf("PeerToPeerMainRoute%d", i),
 		core.PeerMainRt.Id(),
-		peeringRes.Peering.Id(),
+		core.SourceVpcData.CidrBlock(),
 		peeringRes.Peering.Id(),
 		core.PeerProvider,
 		peeringRes.DependsOn,
