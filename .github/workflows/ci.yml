@@ -85,6 +85,5 @@ jobs:
             --user root \
             vpc-peering-ci \
             bash -c "
-              trivy config --skip-dirs generated . && \
-              checkov -d . --skip-path generated
+              make sec
             "
