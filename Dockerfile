@@ -36,7 +36,7 @@ RUN apt-get update && \
 # -----------------------------------------------------------
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+    apt-get install -y --no-install-recommends nodejs
 
 # -----------------------------------------------------------
 # Go tool-chain (from longsleep PPA for fresh 1.22.x)         • AVD-DS-0029

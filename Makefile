@@ -58,10 +58,10 @@ terraform-shell:
 sec: trivy checkov
 
 trivy:
-	trivy config .
+	trivy config --skip-dirs generated --skip-dirs .gen .
 
 checkov:
-	checkov -d .
+	checkov -d . --skip-path generated --skip-path .gen
 
 # ------------------------------------------------------
 #  Unit tests (Terraform native)
