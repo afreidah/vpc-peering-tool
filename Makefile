@@ -58,10 +58,10 @@ terraform-shell:
 sec: trivy checkov
 
 trivy:
-	trivy config .
+	trivy config --skip-dirs generated --skip-dirs .gen .
 
 checkov:
-	checkov -d .
+	checkov -d . --skip-path generated --skip-path .gen
 
 # ------------------------------------------------------
 #  Unit tests (Terraform native)
@@ -78,3 +78,11 @@ gofmt:
 golint:
 	@echo "==> golint (root)..."
 	@if [ -f go.mod ]; then golint $(find . -type f -name '*.go' -not -path './generated/*'); fi
+
+
+# ------------------------------------------------------
+#  List all Makefile tasks
+# ------------------------------------------------------
+
+list:
+	@awk '/^[a-zA-Z0-9_-]+:/ && !/^\./ {print $$1}' $(MAKEFILE_LIST) | sed 's/://'

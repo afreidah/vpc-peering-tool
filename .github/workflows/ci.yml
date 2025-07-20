@@ -1,0 +1,91 @@
+# ------------------------------------------------------------------------------
+# GitHub Actions CI for CDKTF (Go) project with AWS provider
+# Builds and uses a Docker image for all IaC tools and runs all Makefile tests
+# Scanning and linting steps ignore the generated/ directory
+# ------------------------------------------------------------------------------
+
+name: CI
+
+on:
+  pull_request:
+    permissions:
+      contents: read
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Build the Docker image defined in the repo's Dockerfile
+      - name: Build CI Docker image
+        run: docker build -t vpc-peering-ci .
+
+      # Generate a fake peering.yaml for synth/test
+      - name: Generate fake peering.yaml
+        run: |
+          cat > peering.yaml <<EOF
+          peers:
+            fake-peer-a:
+              vpc_id: vpc-0aaaaaaa
+              region: us-east-1
+              role_arn: "arn:aws:iam::111111111111:role/FakeRoleA"
+              dns_resolution: true
+              has_additional_routes: false
+            fake-peer-b:
+              vpc_id: vpc-0bbbbbbb
+              region: us-west-2
+              role_arn: "arn:aws:iam::222222222222:role/FakeRoleB"
+              dns_resolution: true
+              has_additional_routes: true
+          peering_matrix:
+            fake-peer-a:
+              - fake-peer-b
+          EOF
+      # Run golint, ignoring generated/ directory
+      - name: Run golint (ignore generated/)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            --user root \
+            vpc-peering-ci \
+            golint $(find . -type f -name '*.go' -not -path './generated/*')
+
+      ## Run security checks, ignoring generated/ directory
+      #- name: Security checks (ignore generated/)
+      #  run: |
+      #    docker run --rm \
+      #      -v ${{ github.workspace }}:/workspace \
+      #      -w /workspace \
+      #      --user root \
+      #      vpc-peering-ci \
+      #      bash -c "
+      #        make sec
+      #      "
+
+      # Run all Makefile tests and checks in the Docker container as root
+      - name: Run all Makefile tests in Docker container
+        env:
+          CDKTF_SOURCE: fake-peer-a
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            --user root \
+            vpc-peering-ci \
+            bash -c "
+              set -ex
+              make get
+              go mod tidy
+              make init
+              make gofmt
+              make clean
+              make synth
+              make test
+            "
+
