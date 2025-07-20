@@ -46,6 +46,27 @@ jobs:
             fake-peer-a:
               - fake-peer-b
           EOF
+      # Run golint, ignoring generated/ directory
+      - name: Run golint (ignore generated/)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            --user root \
+            vpc-peering-ci \
+            golint $(find . -type f -name '*.go' -not -path './generated/*')
+
+      # Run security checks, ignoring generated/ directory
+      - name: Security checks (ignore generated/)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            --user root \
+            vpc-peering-ci \
+            bash -c "
+              make sec
+            "
 
       # Run all Makefile tests and checks in the Docker container as root
       - name: Run all Makefile tests in Docker container
@@ -68,24 +89,3 @@ jobs:
               make test
             "
 
-      # Run golint, ignoring generated/ directory
-      - name: Run golint (ignore generated/)
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            --user root \
-            vpc-peering-ci \
-            golint $(find . -type f -name '*.go' -not -path './generated/*')
-
-      # Run security checks, ignoring generated/ directory
-      - name: Security checks (ignore generated/)
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            --user root \
-            vpc-peering-ci \
-            bash -c "
-              make sec
-            "
