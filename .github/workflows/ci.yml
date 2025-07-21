@@ -36,6 +36,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
+      # --- Cache cdktf generated providers ---
+      - name: Cache cdktf generated providers
+        uses: actions/cache@v4
+        with:
+          path: generated
+          key: ${{ runner.os }}-cdktf-generated-${{ hashFiles('cdktf.json') }}
+          restore-keys: |
+            ${{ runner.os }}-cdktf-generated-
+
       # --- Build the Docker image defined in the repo's Dockerfile with cache ---
       - name: Build CI Docker image
         uses: docker/build-push-action@v5
