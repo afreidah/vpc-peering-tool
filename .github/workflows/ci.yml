@@ -72,7 +72,6 @@ jobs:
               go mod tidy
               make init
               make gofmt
-              make fmt
               make synth
               make test
               make sec
