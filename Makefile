@@ -2,87 +2,115 @@
 # Makefile for CDKTF (Go) project with AWS provider
 # ------------------------------------------------------------------------------
 
+# --- Stack and Provider Versions ---
 STACK_NAME ?= cdktf-vpc-peering-module
 AWS_PROVIDER_VERSION ?= 5.42.0
 GEN_PATH := .gen/hashicorp/aws
 REPLACE_DIRECTIVE := replace cdk.tf/go/stack/generated/hashicorp/aws => ./${GEN_PATH}
 
-# Export to silence unsupported Node warnings from JSII
+# --- Silence unsupported Node warnings from JSII ---
 export JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=true
 
 .PHONY: init provider fix-replace get tidy synth deploy destroy clean build check
 
-# One-time init (don't run in non-empty dirs)
+# ------------------------------------------------------------------------------
+#  Initialization
+# ------------------------------------------------------------------------------
+
+# --- One-time init (don't run in non-empty dirs) ---
 init:
 	@echo "Skip 'cdktf init' in non-empty directory."
 
-# Generate provider bindings
-get:
-	cdktf get
+# ------------------------------------------------------------------------------
+#  Dependency Management
+# ------------------------------------------------------------------------------
 
-# Install Go deps
+# --- Generate provider bindings ---
+get:
+	CDKTF_LOG_LEVEL=info cdktf get
+
+# --- Install Go deps ---
 tidy:
 	go mod tidy
 
-# Compile and synthesize Terraform config
-synth:
-	cdktf synth -- -source=openvpn-as-production-us-east-1
+# ------------------------------------------------------------------------------
+#  Code Quality
+# ------------------------------------------------------------------------------
 
-# Deploy (terraform apply)
-deploy:
-	cdktf deploy --auto-approve
-
-# Deploy (terraform apply)
-plan:
-	cdktf plan --auto-approve -- -source=openvpn-as-production-us-east-1
-
-# Destroy resources
-destroy:
-	cdktf destroy --auto-approve
-
-# Clean up generated files
-clean:
-	rm -rf cdktf.out .gen && find . -name "*.terraform*" -exec rm -rf {} +
-
-# Full fresh build
-build: clean get tidy synth plan
-
-# Plan using raw terraform CLI
-terraform-shell:
-	cd cdktf.out/stacks/$(STACK_NAME) && terraform init && terraform plan
-
-# ------------------------------------------------------
-#  Security
-# ------------------------------------------------------
-
-sec: trivy checkov
-
-trivy:
-	trivy config --skip-dirs generated --skip-dirs .gen .
-
-checkov:
-	checkov -d . --skip-path generated --skip-path .gen
-
-# ------------------------------------------------------
-#  Unit tests (Terraform native)
-#   Runs 'terraform test' for native module/unit tests.
-# ------------------------------------------------------
-
-test:
-	terraform test -no-color
-
-gofmt:
+# --- Format Go code ---
+fmt:
 	@echo "==> gofmt (root)..."
 	@if [ -f go.mod ]; then find . -type f -name '*.go' -not -path './generated/*' -exec gofmt -s -w {} +; fi
 
-golint:
+# --- Lint Go code ---
+lint:
 	@echo "==> golint (root)..."
 	@if [ -f go.mod ]; then golint $(find . -type f -name '*.go' -not -path './generated/*'); fi
 
+# --- Run Go tests ---
+test:
+	@echo "==> go test (root)..."
+	@if [ -f go.mod ]; then sh -c 'gotestsum --format=testname $(go list ./... | grep -v "generated")'; fi
 
-# ------------------------------------------------------
-#  List all Makefile tasks
-# ------------------------------------------------------
+# ------------------------------------------------------------------------------
+#  Synthesis & Deployment
+# ------------------------------------------------------------------------------
 
+# --- Compile and synthesize Terraform config ---
+synth:
+	cdktf synth 
+
+# --- Deploy (terraform apply) ---
+deploy:
+	cdktf deploy --auto-approve
+
+# --- Plan (terraform plan) ---
+plan:
+	cdktf plan --auto-approve
+
+# --- Destroy resources ---
+destroy:
+	cdktf destroy --auto-approve
+
+# ------------------------------------------------------------------------------
+#  Build & Clean
+# ------------------------------------------------------------------------------
+
+# --- Clean up generated files ---
+clean:
+	rm -rf cdktf.out .gen && find . -name "*.terraform*" -exec rm -rf {} +
+
+# --- Full fresh build ---
+build: clean get tidy synth plan sec
+
+# ------------------------------------------------------------------------------
+#  Terraform CLI
+# ------------------------------------------------------------------------------
+
+# --- Plan using raw terraform CLI ---
+terraform-shell:
+	cd cdktf.out/stacks/$(STACK_NAME) && terraform init && terraform plan
+
+# ------------------------------------------------------------------------------
+#  Security
+# ------------------------------------------------------------------------------
+
+# --- Run all security checks ---
+sec: trivy checkov
+
+# --- Run Trivy security scan ---
+trivy:
+	trivy config --skip-dirs generated --skip-dirs .gen .
+
+# --- Run Checkov security scan ---
+checkov:
+	checkov -d . --skip-path generated --skip-path .gen
+
+# ------------------------------------------------------------------------------
+#  Utilities
+# ------------------------------------------------------------------------------
+
+# --- List all Makefile tasks ---
 list:
 	@awk '/^[a-zA-Z0-9_-]+:/ && !/^\./ {print $$1}' $(MAKEFILE_LIST) | sed 's/://'
+

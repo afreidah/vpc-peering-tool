@@ -121,6 +121,14 @@ RUN groupadd --system cicd && \
 RUN npm install -g cdktf-cli
 
 # -----------------------------------------------------------
+# Install gotestsum globally as root
+# -----------------------------------------------------------
+
+USER root
+RUN go install gotest.tools/gotestsum@latest && mv /root/go/bin/gotestsum /usr/local/bin
+USER cicd
+
+# -----------------------------------------------------------
 # Switch to unprivileged user
 # -----------------------------------------------------------
 

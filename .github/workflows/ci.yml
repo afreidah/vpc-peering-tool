@@ -1,3 +1,4 @@
+
 # ------------------------------------------------------------------------------
 # GitHub Actions CI for CDKTF (Go) project with AWS provider
 # Builds and uses a Docker image for all IaC tools and runs all Makefile tests
@@ -11,8 +12,6 @@ permissions:
 
 on:
   pull_request:
-    permissions:
-      contents: read
     branches: [ main ]
 
 jobs:
@@ -20,15 +19,43 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      # Checkout the repository code
+      # --- Checkout the repository code ---
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Build the Docker image defined in the repo's Dockerfile
-      - name: Build CI Docker image
-        run: docker build -t vpc-peering-ci .
+      # --- Set up Docker Buildx for caching ---
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # Generate a fake peering.yaml for synth/test
+      # --- Cache Docker layers ---
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # --- Cache cdktf generated providers ---
+      - name: Cache cdktf generated providers
+        uses: actions/cache@v4
+        with:
+          path: generated
+          key: ${{ runner.os }}-cdktf-generated-${{ hashFiles('cdktf.json') }}
+          restore-keys: |
+            ${{ runner.os }}-cdktf-generated-
+
+      # --- Build the Docker image defined in the repo's Dockerfile with cache ---
+      - name: Build CI Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: vpc-peering-ci
+          load: true
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+
+      # --- Generate a fake peering.yaml for synth/test ---
       - name: Generate fake peering.yaml
         run: |
           cat > peering.yaml <<EOF
@@ -49,17 +76,8 @@ jobs:
             fake-peer-a:
               - fake-peer-b
           EOF
-      # Run golint, ignoring generated/ directory
-      - name: Run golint (ignore generated/)
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            --user root \
-            vpc-peering-ci \
-            golint $(find . -type f -name '*.go' -not -path './generated/*')
 
-      # Run all Makefile tests and checks in the Docker container as root
+      # --- Run all Makefile tests and checks in the Docker container as root ---
       - name: Run all Makefile tests in Docker container
         env:
           CDKTF_SOURCE: fake-peer-a
@@ -71,10 +89,11 @@ jobs:
             vpc-peering-ci \
             bash -c "
               set -ex
-              make get
-              go mod tidy
               make init
-              make gofmt
+              make get
+              make tidy
+              make fmt
+              make lint
               make synth
               make test
               make sec

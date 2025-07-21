@@ -1,7 +1,8 @@
-// -------------------------------------------------------------------------------------------------
-// CDKTF VPC Peering Stack with Bi-Directional Routing, DNS, and Automatic Subnet Route Management
-// Handles cross-account/region peering with explicit accepter resource.
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Package main implements a CDKTF VPC Peering Stack with Bi-Directional Routing,
+// DNS, and Automatic Subnet Route Management. Handles cross-account/region
+// peering with explicit accepter resource.
+// -----------------------------------------------------------------------------
 package main
 
 import (
@@ -16,9 +17,9 @@ import (
 	vpcpeeringconnection "cdk.tf/go/stack/generated/hashicorp/aws/vpcpeeringconnection"
 )
 
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Stack Construction
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 /*
 NewMyStack constructs the CDKTF stack for VPC peering, bi-directional routing, and DNS management.
@@ -47,6 +48,11 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 	var sourceMainRouteTables []dataawsroutetable.DataAwsRouteTable
 	var peerMainRouteTables []dataawsroutetable.DataAwsRouteTable
 
+	// Instantiate real factories for production use
+	providerFactory := &RealAwsProviderFactory{}
+	vpcFactory := &RealDataAwsVpcFactory{}
+	rtFactory := &RealDataAwsRouteTableFactory{}
+
 	for i, peer := range peers {
 		// --- Validate peer configuration or set defaults ---
 		sourceRegion := peer.SourceRegion
@@ -59,7 +65,16 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 		}
 
 		// --- Get core info on each peer ---
-		core := SetupPeerCoreResources(stack, i, peer, sourceRegion, peerRegion)
+		core := SetupPeerCoreResources(
+			providerFactory,
+			vpcFactory,
+			rtFactory,
+			stack,
+			i,
+			peer,
+			sourceRegion,
+			peerRegion,
+		)
 		sourceMainRouteTables = append(sourceMainRouteTables, core.SourceMainRt)
 		peerMainRouteTables = append(peerMainRouteTables, core.PeerMainRt)
 
@@ -98,9 +113,9 @@ func NewMyStack(scope constructs.Construct, id string, sourceID string, peers []
 	return stack
 }
 
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Main Entrypoint
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 /*
 main is the entrypoint for the CDKTF VPC peering stack application.
