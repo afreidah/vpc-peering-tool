@@ -50,7 +50,7 @@ lint:
 # --- Run Go tests ---
 test:
 	@echo "==> go test (root)..."
-	@if [ -f go.mod ]; then gotestsum --format=testname $(shell go list ./... | grep -v 'generated'); fi
+	@if [ -f go.mod ]; then sh -c 'gotestsum --format=testname $(go list ./... | grep -v "generated")'; fi
 
 # ------------------------------------------------------------------------------
 #  Synthesis & Deployment
@@ -58,7 +58,7 @@ test:
 
 # --- Compile and synthesize Terraform config ---
 synth:
-	cdktf synth -- -source=openvpn-as-production-us-east-1
+	cdktf synth 
 
 # --- Deploy (terraform apply) ---
 deploy:
@@ -66,7 +66,7 @@ deploy:
 
 # --- Plan (terraform plan) ---
 plan:
-	cdktf plan --auto-approve -- -source=openvpn-as-production-us-east-1
+	cdktf plan --auto-approve
 
 # --- Destroy resources ---
 destroy:

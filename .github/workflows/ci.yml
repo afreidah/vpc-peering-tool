@@ -77,16 +77,6 @@ jobs:
               - fake-peer-b
           EOF
 
-      # --- Run golint, ignoring generated/ directory ---
-#- name: Run golint (ignore generated/)
-#        run: |
-#          docker run --rm \
-#            -v ${{ github.workspace }}:/workspace \
-#            -w /workspace \
-#            --user root \
-#            vpc-peering-ci \
-#            golint $(find . -type f -name '*.go' -not -path './generated/*')
-
       # --- Run all Makefile tests and checks in the Docker container as root ---
       - name: Run all Makefile tests in Docker container
         env:
