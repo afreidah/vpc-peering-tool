@@ -6,6 +6,9 @@
 
 name: CI
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     permissions:
@@ -56,18 +59,6 @@ jobs:
             vpc-peering-ci \
             golint $(find . -type f -name '*.go' -not -path './generated/*')
 
-      ## Run security checks, ignoring generated/ directory
-      #- name: Security checks (ignore generated/)
-      #  run: |
-      #    docker run --rm \
-      #      -v ${{ github.workspace }}:/workspace \
-      #      -w /workspace \
-      #      --user root \
-      #      vpc-peering-ci \
-      #      bash -c "
-      #        make sec
-      #      "
-
       # Run all Makefile tests and checks in the Docker container as root
       - name: Run all Makefile tests in Docker container
         env:
@@ -84,8 +75,8 @@ jobs:
               go mod tidy
               make init
               make gofmt
-              make clean
               make synth
               make test
+              make sec
             "
 
