@@ -1,3 +1,4 @@
+
 # ------------------------------------------------------------------------------
 # GitHub Actions CI for CDKTF (Go) project with AWS provider
 # Builds and uses a Docker image for all IaC tools and runs all Makefile tests
@@ -11,8 +12,6 @@ permissions:
 
 on:
   pull_request:
-    permissions:
-      contents: read
     branches: [ main ]
 
 jobs:
@@ -24,9 +23,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- Build the Docker image defined in the repo's Dockerfile ---
+      # --- Set up Docker Buildx for caching ---
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --- Cache Docker layers ---
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # --- Build the Docker image defined in the repo's Dockerfile with cache ---
       - name: Build CI Docker image
-        run: docker build -t vpc-peering-ci .
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: vpc-peering-ci
+          load: true
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
 
       # --- Generate a fake peering.yaml for synth/test ---
       - name: Generate fake peering.yaml
@@ -49,15 +67,16 @@ jobs:
             fake-peer-a:
               - fake-peer-b
           EOF
+
       # --- Run golint, ignoring generated/ directory ---
-      - name: Run golint (ignore generated/)
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            --user root \
-            vpc-peering-ci \
-            golint $(find . -type f -name '*.go' -not -path './generated/*')
+#- name: Run golint (ignore generated/)
+#        run: |
+#          docker run --rm \
+#            -v ${{ github.workspace }}:/workspace \
+#            -w /workspace \
+#            --user root \
+#            vpc-peering-ci \
+#            golint $(find . -type f -name '*.go' -not -path './generated/*')
 
       # --- Run all Makefile tests and checks in the Docker container as root ---
       - name: Run all Makefile tests in Docker container
@@ -71,10 +90,11 @@ jobs:
             vpc-peering-ci \
             bash -c "
               set -ex
-              make get
-              go mod tidy
               make init
-              make gofmt
+              make get
+              make tidy
+              make fmt
+              make lint
               make synth
               make test
               make sec
