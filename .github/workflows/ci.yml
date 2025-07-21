@@ -20,15 +20,15 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      # Checkout the repository code
+      # --- Checkout the repository code ---
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Build the Docker image defined in the repo's Dockerfile
+      # --- Build the Docker image defined in the repo's Dockerfile ---
       - name: Build CI Docker image
         run: docker build -t vpc-peering-ci .
 
-      # Generate a fake peering.yaml for synth/test
+      # --- Generate a fake peering.yaml for synth/test ---
       - name: Generate fake peering.yaml
         run: |
           cat > peering.yaml <<EOF
@@ -49,7 +49,7 @@ jobs:
             fake-peer-a:
               - fake-peer-b
           EOF
-      # Run golint, ignoring generated/ directory
+      # --- Run golint, ignoring generated/ directory ---
       - name: Run golint (ignore generated/)
         run: |
           docker run --rm \
@@ -59,7 +59,7 @@ jobs:
             vpc-peering-ci \
             golint $(find . -type f -name '*.go' -not -path './generated/*')
 
-      # Run all Makefile tests and checks in the Docker container as root
+      # --- Run all Makefile tests and checks in the Docker container as root ---
       - name: Run all Makefile tests in Docker container
         env:
           CDKTF_SOURCE: fake-peer-a
